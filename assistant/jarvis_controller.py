@@ -461,7 +461,7 @@ class JarvisController:
         print("Controller started.")
         print("Look for the JARVIS icon in the system tray.")
         print(f"Web UI will be available at {UI_URL}")
-        print("Right-click tray → Launch Desktop GUI for Iron Man UI")
+        print("Right-click tray -> Launch Desktop GUI for Iron Man UI")
 
         # Automatically start JARVIS.
         threading.Thread(
