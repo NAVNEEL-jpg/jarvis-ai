@@ -7,12 +7,12 @@ cd /d "C:\Users\admin\jarvis-ai"
 echo ============================================================
 echo                     J.A.R.V.I.S  SYSTEMS
 echo ============================================================
-echo  Initializing voice server, web dashboard, and controller...
+echo  Initializing voice server, web dashboard, and desktop GUI...
 echo ============================================================
 echo.
 
 :: 1. Start JARVIS Voice Server
-echo [1/3] Starting Voice Server...
+echo [1/4] Starting Voice Server...
 start "JARVIS Voice Server" /min cmd /c ^
   "C:\Users\admin\jarvis-ai\external\JarvisLuxTTS\.venv-tts\Scripts\python.exe -m uvicorn tts_server:app --app-dir C:\Users\admin\jarvis-ai\external\JarvisLuxTTS --host 127.0.0.1 --port 8765"
 
@@ -31,16 +31,23 @@ echo [OK] Voice Server Online.
 echo.
 
 :: 2. Start Web UI Server (binds to 0.0.0.0 for Wifi/mobile access)
-echo [2/3] Starting Web Dashboard Server...
+echo [2/4] Starting Web Dashboard Server...
 start "JARVIS Web UI" /min cmd /c ^
   "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
 
-:: 3. Start System Tray Controller & Desktop GUI
-echo [3/3] Launching Controller & System Tray...
-start "JARVIS Controller" /min cmd /c ^
-  "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe assistant\jarvis_controller.py"
+:: Give Web UI 1.5 seconds to bind
+timeout /t 2 >nul
 
-echo [OK] Controller & System Tray running.
+:: 3. Open Web Dashboard in default browser
+echo [3/4] Opening Web Dashboard...
+start http://localhost:3000
+
+:: 4. Start PyQt5 Desktop GUI (Arc Reactor HUD)
+echo [4/4] Launching Arc Reactor GUI...
+start "JARVIS GUI" /min cmd /c ^
+  "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
+
+echo [OK] Arc Reactor GUI launched.
 echo.
 echo ============================================================
 echo                     ALL SYSTEMS ONLINE
