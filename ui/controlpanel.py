@@ -535,7 +535,10 @@ class CommandTab(QWidget):
     def __init__(self):
         super().__init__()
         self._workers = []
-        self._router  = None
+        self._last_question = ""
+        self._last_answer   = ""
+        self._trainer       = None
+        self._init_trainer()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -572,6 +575,45 @@ class CommandTab(QWidget):
         input_row.addWidget(self.clear_btn)
         layout.addLayout(input_row)
 
+        # ── Remember This bar ─────────────────────────────────────────────────
+        # Shows after each reply so user can save the Q→A to Supabase
+        self.remember_frame = QFrame()
+        self.remember_frame.setStyleSheet(
+            f"QFrame {{ background: rgba(0,230,118,0.06); "
+            f"border: 1px solid rgba(0,230,118,0.25); border-radius: 8px; padding: 6px 10px; }}"
+        )
+        remember_row = QHBoxLayout(self.remember_frame)
+        remember_row.setContentsMargins(8, 6, 8, 6)
+        remember_row.setSpacing(8)
+
+        save_icon = QLabel("💾")
+        save_icon.setStyleSheet("font-size: 16px;")
+
+        self.remember_q = QLabel("")
+        self.remember_q.setStyleSheet(f"color: {MUTED}; font-size: 10px; font-family: Consolas;")
+        self.remember_q.setWordWrap(False)
+
+        self.remember_cat = QComboBox()
+        self.remember_cat.addItems(["general", "smart_home", "personal", "work", "entertainment", "custom"])
+        self.remember_cat.setFixedWidth(120)
+        self.remember_cat.setToolTip("Category for this command")
+
+        self.remember_btn = btn("💾  Remember This", GREEN, 170)
+        self.remember_btn.setFixedHeight(32)
+        self.remember_btn.clicked.connect(self._save_to_supabase)
+
+        self.remember_status = QLabel("")
+        self.remember_status.setStyleSheet(f"color: {GREEN}; font-family: Consolas; font-size: 10px;")
+
+        remember_row.addWidget(save_icon)
+        remember_row.addWidget(self.remember_q, 1)
+        remember_row.addWidget(self.remember_cat)
+        remember_row.addWidget(self.remember_btn)
+        remember_row.addWidget(self.remember_status)
+
+        self.remember_frame.setVisible(False)   # hidden until first reply
+        layout.addWidget(self.remember_frame)
+
         # Quick test buttons
         layout.addWidget(section_label("QUICK TEST"))
         quick_row = QHBoxLayout()
@@ -592,6 +634,13 @@ class CommandTab(QWidget):
 
         self._log("JARVIS", "Control panel connected. Type a command to test.")
 
+    def _init_trainer(self):
+        try:
+            from trainer import JarvisTrainer
+            self._trainer = JarvisTrainer()
+        except Exception:
+            self._trainer = None
+
     def _log(self, role: str, text: str):
         color = CYAN if role == "JARVIS" else "#90caf9"
         self.chat.append(
@@ -607,9 +656,13 @@ class CommandTab(QWidget):
         text = self.cmd_input.text().strip()
         if not text:
             return
+        self._last_question = text
+        self._last_answer   = ""
         self.cmd_input.clear()
         self._log("YOU", text)
         self.send_btn.setEnabled(False)
+        self.remember_frame.setVisible(False)
+        self.remember_status.setText("")
         self.status_msg.emit("Processing…")
 
         w = RouterWorker(text)
@@ -618,9 +671,43 @@ class CommandTab(QWidget):
         self._workers.append(w)
 
     def _on_reply(self, answer: str):
+        self._last_answer = answer
         self._log("JARVIS", answer)
         self.send_btn.setEnabled(True)
         self.status_msg.emit("Ready")
+
+        # Show the Remember This bar
+        short_q = (self._last_question[:55] + "…") if len(self._last_question) > 55 else self._last_question
+        self.remember_q.setText(f'Q: "{short_q}"  →  Save this Q&A to Supabase for instant future recall')
+        self.remember_status.setText("")
+        self.remember_frame.setVisible(True)
+
+    def _save_to_supabase(self):
+        """Save the last Q→A pair to jarvis_training for instant future recall."""
+        if not self._last_question or not self._last_answer:
+            return
+
+        if not self._trainer or not self._trainer.available:
+            self.remember_status.setText("⚠ Supabase not configured — set credentials in Authentication tab.")
+            self.remember_status.setStyleSheet(f"color: {RED}; font-family: Consolas; font-size: 10px;")
+            return
+
+        category = self.remember_cat.currentText() or "general"
+        result   = self._trainer.add_command(
+            trigger=self._last_question,
+            response=self._last_answer,
+            category=category,
+        )
+
+        if result.get("success"):
+            self.remember_status.setText("✓ Saved! JARVIS will recall this instantly next time.")
+            self.remember_status.setStyleSheet(f"color: {GREEN}; font-family: Consolas; font-size: 10px;")
+            self.remember_btn.setEnabled(False)
+            # Re-enable after 3s
+            QTimer.singleShot(3000, lambda: self.remember_btn.setEnabled(True))
+        else:
+            self.remember_status.setText(f"✗ {result.get('error', 'Save failed.')}")
+            self.remember_status.setStyleSheet(f"color: {RED}; font-family: Consolas; font-size: 10px;")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
