@@ -2,7 +2,7 @@
 title J.A.R.V.I.S Launcher
 color 0b
 
-cd /d "C:\Users\admin\jarvis-ai"
+cd /d "D:\jarvis-ai"
 
 echo ============================================================
 echo                     J.A.R.V.I.S  SYSTEMS
@@ -26,7 +26,7 @@ echo.
 :: 1. Start JARVIS Voice Server
 echo [1/4] Starting Voice Server...
 start "JARVIS Voice Server" /min cmd /c ^
-  "C:\Users\admin\jarvis-ai\external\JarvisLuxTTS\.venv-tts\Scripts\python.exe -m uvicorn tts_server:app --app-dir C:\Users\admin\jarvis-ai\external\JarvisLuxTTS --host 127.0.0.1 --port 8765"
+  "D:\jarvis-ai\external\JarvisLuxTTS\.venv-tts\Scripts\python.exe -m uvicorn tts_server:app --app-dir D:\jarvis-ai\external\JarvisLuxTTS --host 127.0.0.1 --port 8765"
 
 :: Wait for voice server health endpoint
 powershell -NoProfile -Command ^
@@ -65,7 +65,7 @@ if "%CHOICE%"=="1" (
     echo.
     echo Starting Web Dashboard Server...
     start "JARVIS Web UI" /min cmd /c ^
-      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
+      "D:\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
     timeout /t 2 >nul
     echo Opening Web Dashboard...
     start http://localhost:3000
@@ -76,7 +76,7 @@ if "%CHOICE%"=="2" (
     echo.
     echo Starting PyQt5 Desktop GUI (Arc Reactor HUD)...
     start "JARVIS GUI" /min cmd /c ^
-      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
+      "D:\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
     goto :system_booted
 )
 
@@ -84,14 +84,14 @@ if "%CHOICE%"=="3" (
     echo.
     echo Starting Web Dashboard Server...
     start "JARVIS Web UI" /min cmd /c ^
-      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
+      "D:\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
     timeout /t 2 >nul
     echo Opening Web Dashboard...
     start http://localhost:3000
     
     echo Starting PyQt5 Desktop GUI (Arc Reactor HUD)...
     start "JARVIS GUI" /min cmd /c ^
-      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
+      "D:\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
     goto :system_booted
 )
 

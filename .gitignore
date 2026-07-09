@@ -51,3 +51,6 @@ node_modules/
  
 # Alexa local session cache
 assistant/.alexa_cache/
+
+# Piper local voice models
+external/piper/
