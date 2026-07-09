@@ -906,7 +906,10 @@ function handleMessage(msg) {
 
   if (role === 'assistant') {
     addMessage('assistant', text, timestamp);
-    speakText(text);
+    // Do not speak the automated startup/welcome message aloud to prevent loops
+    if (!text.includes("JARVIS Web Interface is online")) {
+      speakText(text);
+    }
     fetchMemory();   // refresh memory panel after each reply
     return;
   }
@@ -1060,6 +1063,10 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   recognition.lang = 'en-US';
 
   recognition.onresult = (e) => {
+    if (window.ignoreSpeechUntil && Date.now() < window.ignoreSpeechUntil) {
+      return;
+    }
+
     let finalTranscript = '';
     let interimTranscript = '';
 
@@ -1229,6 +1236,8 @@ function speakText(text) {
     clearTimeout(ttsFallbackTimer);
     if (!wakeListening) {
       setTimeout(() => {
+        // Set a 1.2 second cooldown ignoring microphone input immediately after TTS ends
+        window.ignoreSpeechUntil = Date.now() + 1200;
         wakeListening = true;
         if (recognition) {
           try {
