@@ -50,6 +50,8 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # Configurations are read dynamically inside each bridge to allow updating without server reboots.
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"), override=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
