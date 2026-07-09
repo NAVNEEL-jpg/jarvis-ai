@@ -136,6 +136,7 @@ class ConfigPayload(BaseModel):
     alexa_region: str
     google_home_email: str
     google_home_password: str
+    google_home_devices: Optional[str] = ""
     supabase_url: str
     supabase_anon_key: str
 
@@ -172,6 +173,7 @@ async def get_config():
         "amazon_email": os.getenv("AMAZON_EMAIL", ""),
         "alexa_region": os.getenv("ALEXA_REGION", "amazon.in"),
         "google_home_email": os.getenv("GOOGLE_HOME_EMAIL", ""),
+        "google_home_devices": os.getenv("GOOGLE_HOME_DEVICES", ""),
         "supabase_url": os.getenv("SUPABASE_URL", ""),
         # Hide passwords/keys for safety but indicate presence
         "has_amazon_password": bool(os.getenv("AMAZON_PASSWORD")),
@@ -185,6 +187,7 @@ async def save_config(payload: ConfigPayload):
         "AMAZON_EMAIL": payload.amazon_email,
         "ALEXA_REGION": payload.alexa_region,
         "GOOGLE_HOME_EMAIL": payload.google_home_email,
+        "GOOGLE_HOME_DEVICES": payload.google_home_devices or "",
         "SUPABASE_URL": payload.supabase_url,
     }
     if payload.amazon_password:

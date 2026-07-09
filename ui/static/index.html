@@ -710,6 +710,13 @@
           <label>App Password (Leave blank to keep current)</label>
           <input type="password" id="cfg-google-password" placeholder="••••••••">
         </div>
+        <div class="form-group">
+          <label>Google Home Speaker Names (Optional, comma-separated list)</label>
+          <input type="text" id="cfg-google-devices" placeholder="e.g. Living Room Speaker, Kitchen Speaker">
+          <span style="font-size: 9px; color: var(--text-dim); margin-top: 4px; display: block;">
+            💡 Type your Nest/Google speaker names here to bypass Google login block issues completely.
+          </span>
+        </div>
       </div>
 
       <div class="glass-card">
@@ -1401,6 +1408,7 @@ async function fetchWebConfig() {
     document.getElementById('cfg-alexa-email').value = d.amazon_email;
     document.getElementById('cfg-alexa-region').value = d.alexa_region;
     document.getElementById('cfg-google-email').value = d.google_home_email;
+    document.getElementById('cfg-google-devices').value = d.google_home_devices || "";
     document.getElementById('cfg-supabase-url').value = d.supabase_url;
     
     document.getElementById('cfg-alexa-password').placeholder = d.has_amazon_password ? '•••••••• (Saved)' : 'Enter password';
@@ -1418,6 +1426,7 @@ async function saveWebConfig() {
     alexa_region: document.getElementById('cfg-alexa-region').value,
     google_home_email: document.getElementById('cfg-google-email').value,
     google_home_password: document.getElementById('cfg-google-password').value,
+    google_home_devices: document.getElementById('cfg-google-devices').value,
     supabase_url: document.getElementById('cfg-supabase-url').value,
     supabase_anon_key: document.getElementById('cfg-supabase-key').value,
   };
