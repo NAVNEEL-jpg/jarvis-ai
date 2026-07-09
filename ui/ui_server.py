@@ -140,6 +140,8 @@ class ConfigPayload(BaseModel):
     google_home_devices: Optional[str] = ""
     supabase_url: str
     supabase_anon_key: str
+    ha_url: Optional[str] = ""
+    ha_token: Optional[str] = ""
 
 def update_env_file(updates: dict[str, str]):
     env_path = os.path.join(_PROJECT_ROOT, ".env")
@@ -187,10 +189,12 @@ async def get_config():
         "google_home_email": os.getenv("GOOGLE_HOME_EMAIL", ""),
         "google_home_devices": os.getenv("GOOGLE_HOME_DEVICES", ""),
         "supabase_url": os.getenv("SUPABASE_URL", ""),
+        "ha_url": os.getenv("HA_URL", ""),
         # Hide passwords/keys for safety but indicate presence
         "has_amazon_password": bool(os.getenv("AMAZON_PASSWORD")),
         "has_google_home_password": bool(os.getenv("GOOGLE_HOME_PASSWORD")),
         "has_supabase_anon_key": bool(os.getenv("SUPABASE_ANON_KEY")),
+        "has_ha_token": bool(os.getenv("HA_TOKEN")),
     }
 
 @app.post("/api/config")
@@ -201,6 +205,7 @@ async def save_config(payload: ConfigPayload):
         "GOOGLE_HOME_EMAIL": payload.google_home_email,
         "GOOGLE_HOME_DEVICES": payload.google_home_devices or "",
         "SUPABASE_URL": payload.supabase_url,
+        "HA_URL": payload.ha_url or "",
     }
     if payload.amazon_password:
         updates["AMAZON_PASSWORD"] = payload.amazon_password
@@ -208,6 +213,8 @@ async def save_config(payload: ConfigPayload):
         updates["GOOGLE_HOME_PASSWORD"] = payload.google_home_password
     if payload.supabase_anon_key:
         updates["SUPABASE_ANON_KEY"] = payload.supabase_anon_key
+    if payload.ha_token:
+        updates["HA_TOKEN"] = payload.ha_token
 
     if payload.alexa_cookies and payload.amazon_email:
         try:
@@ -283,13 +290,17 @@ async def list_devices():
         gdevices = router.home.google.list_devices()
         devices.extend([{"name": gd, "type": "Google Home"} for gd in gdevices])
     # 3. Home Assistant devices
+    ha_status = "offline (Not configured)"
     if router.home.ha.available:
         entities = router.home.ha.list_entities("light") + router.home.ha.list_entities("switch")
         devices.extend([{"name": e.split(".")[-1].replace("_", " "), "type": "Home Assistant"} for e in entities])
+        test_states = router.home.ha._get("states")
+        ha_status = "online" if test_states is not None else "offline (Connection error)"
     return {
         "devices": devices,
         "alexa_status": router.home.alexa.status,
         "google_status": router.home.google.status,
+        "ha_status": ha_status,
     }
 
 @app.websocket("/ws/chat")

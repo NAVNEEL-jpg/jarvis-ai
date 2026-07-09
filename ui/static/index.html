@@ -736,6 +736,16 @@
           <label>Anon Public Key (Leave blank to keep current)</label>
           <input type="password" id="cfg-supabase-key" placeholder="••••••••">
         </div>
+      <div class="glass-card">
+        <h4 style="color:var(--cyan); margin-bottom:12px; font-family:var(--font-hud); font-size:11px;">HOME ASSISTANT HUB</h4>
+        <div class="form-group">
+          <label>Home Assistant URL</label>
+          <input type="url" id="cfg-ha-url" placeholder="e.g. http://192.168.1.100:8123">
+        </div>
+        <div class="form-group">
+          <label>Long-Lived Access Token (Leave blank to keep current)</label>
+          <input type="password" id="cfg-ha-token" placeholder="••••••••">
+        </div>
       </div>
 
       <div class="btn-row">
@@ -1427,10 +1437,12 @@ async function fetchWebConfig() {
     document.getElementById('cfg-google-email').value = d.google_home_email;
     document.getElementById('cfg-google-devices').value = d.google_home_devices || "";
     document.getElementById('cfg-supabase-url').value = d.supabase_url;
+    document.getElementById('cfg-ha-url').value = d.ha_url || "";
     
     document.getElementById('cfg-alexa-password').placeholder = d.has_amazon_password ? '•••••••• (Saved)' : 'Enter password';
     document.getElementById('cfg-google-password').placeholder = d.has_google_home_password ? '•••••••• (Saved)' : 'Enter app password';
     document.getElementById('cfg-supabase-key').placeholder = d.has_supabase_anon_key ? '•••••••• (Saved)' : 'Enter anon key';
+    document.getElementById('cfg-ha-token').placeholder = d.has_ha_token ? '•••••••• (Saved)' : 'Enter HA token';
   } catch (err) {
     toast('Error loading config.');
   }
@@ -1447,6 +1459,8 @@ async function saveWebConfig() {
     google_home_devices: document.getElementById('cfg-google-devices').value,
     supabase_url: document.getElementById('cfg-supabase-url').value,
     supabase_anon_key: document.getElementById('cfg-supabase-key').value,
+    ha_url: document.getElementById('cfg-ha-url').value,
+    ha_token: document.getElementById('cfg-ha-token').value,
   };
 
   try {
@@ -1567,6 +1581,9 @@ async function scanWebDevices() {
     }
     if (d.google_status && d.google_status !== "online" && d.google_status !== "idle") {
       statusHeader += `<div style="grid-column:1/-1; margin-bottom:10px; padding:10px; background:rgba(255,61,90,0.1); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:11px;">⚠️ Google Home connection issue: ${esc(d.google_status)}</div>`;
+    }
+    if (d.ha_status && d.ha_status !== "online" && d.ha_status !== "offline (Not configured)") {
+      statusHeader += `<div style="grid-column:1/-1; margin-bottom:10px; padding:10px; background:rgba(255,61,90,0.1); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:11px;">⚠️ Home Assistant connection issue: ${esc(d.ha_status)}</div>`;
     }
 
     if (!d.devices || d.devices.length === 0) {
