@@ -261,7 +261,11 @@ async def list_devices():
     if router.home.ha.available:
         entities = router.home.ha.list_entities("light") + router.home.ha.list_entities("switch")
         devices.extend([{"name": e.split(".")[-1].replace("_", " "), "type": "Home Assistant"} for e in entities])
-    return {"devices": devices}
+    return {
+        "devices": devices,
+        "alexa_status": router.home.alexa.status,
+        "google_status": router.home.google.status,
+    }
 
 @app.websocket("/ws/chat")
 async def websocket_chat(ws: WebSocket):

@@ -1534,12 +1534,20 @@ async function scanWebDevices() {
     const r = await fetch('/api/devices');
     const d = await r.json();
     
+    let statusHeader = "";
+    if (d.alexa_status && d.alexa_status !== "online" && d.alexa_status !== "idle") {
+      statusHeader += `<div style="grid-column:1/-1; margin-bottom:10px; padding:10px; background:rgba(255,61,90,0.1); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:11px;">⚠️ Alexa connection issue: ${esc(d.alexa_status)}</div>`;
+    }
+    if (d.google_status && d.google_status !== "online" && d.google_status !== "idle") {
+      statusHeader += `<div style="grid-column:1/-1; margin-bottom:10px; padding:10px; background:rgba(255,61,90,0.1); border:1px solid var(--red); border-radius:6px; color:var(--red); font-size:11px;">⚠️ Google Home connection issue: ${esc(d.google_status)}</div>`;
+    }
+
     if (!d.devices || d.devices.length === 0) {
-      list.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-dim);">No Alexa or smart home devices discovered. Make sure credentials are configured.</div>';
+      list.innerHTML = statusHeader + '<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-dim);">No Alexa or smart home devices discovered. Make sure credentials are correct.</div>';
       return;
     }
 
-    list.innerHTML = d.devices.map(dev => `
+    list.innerHTML = statusHeader + d.devices.map(dev => `
       <div class="device-card">
         <div class="device-info">
           <span class="device-name">${esc(dev.name)}</span>

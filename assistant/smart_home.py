@@ -82,6 +82,7 @@ class AlexaBridge:
         self.password = AMAZON_PASSWORD
         self.url      = f"https://www.{ALEXA_REGION}"
         self.available = bool(self.email and self.password)
+        self.status   = "idle" if not self.available else "connecting"
         self._login   = None
         self._api     = None
         self._devices = {}      # name → serial/entity
@@ -106,18 +107,24 @@ class AlexaBridge:
         try:
             from alexapy import AlexaLogin, AlexaAPI
 
+            # Path helper for cookies/cache expected by newer alexapy signatures
+            def path_helper(filename):
+                cache_dir = os.path.join(os.path.dirname(__file__), ".alexa_cache")
+                os.makedirs(cache_dir, exist_ok=True)
+                return os.path.join(cache_dir, filename)
+
+            # Pass positional parameters: url, email, password, outputpath
             login = AlexaLogin(
-                url=self.url,
-                email=self.email,
-                password=self.password,
-                outputfiles_path=os.path.join(
-                    os.path.dirname(__file__), ".alexa_cache"
-                ),
+                self.url,
+                self.email,
+                self.password,
+                path_helper,
                 debug=False,
             )
             self._run(login.login())
 
             if not login.status.get("login_successful"):
+                self.status = f"offline (Login failed: {login.status})"
                 logger.warning("Alexa login failed: %s", login.status)
                 return
 
@@ -131,11 +138,14 @@ class AlexaBridge:
                     name = d.get("accountName", "").lower()
                     self._devices[name] = d.get("serialNumber", "")
             self._ready = True
+            self.status = "online"
             logger.info("Alexa bridge ready: %d devices", len(self._devices))
 
         except ImportError:
+            self.status = "offline (alexapy not installed)"
             logger.warning("alexapy not installed. Run: pip install alexapy")
         except Exception as exc:
+            self.status = f"offline ({str(exc)})"
             logger.warning("Alexa init error: %s", exc)
 
     def _get_serial(self, device_name: str) -> Optional[str]:
@@ -288,6 +298,7 @@ class GoogleHomeBridge:
         self.email    = GOOGLE_HOME_EMAIL
         self.password = GOOGLE_HOME_PASSWORD
         self.available = bool(self.email and self.password)
+        self.status   = "idle" if not self.available else "connecting"
         self._devices = {}   # name → HomeMiniInfo
         self._tokens  = {}   # name → local_auth_token
         self._ready   = False
@@ -301,20 +312,37 @@ class GoogleHomeBridge:
 
             client = GLocalAuthenticationTokens(
                 username=self.email,
-                password=self.password,
+                password=self.password.replace(" ", ""),  # Strip spaces just in case
             )
             tokens = client.get_google_devices_json()
-            if tokens:
+            
+            # GLocalAuthenticationTokens returns empty list string '[]' or empty list if login fails
+            if tokens == "[]" or not tokens:
+                self.status = "offline (BadAuthentication: Could not get master token. Double-check your Gmail and App Password)"
+                logger.warning("Google Home login failed.")
+                return
+
+            if isinstance(tokens, str):
+                import json
+                try:
+                    tokens = json.loads(tokens)
+                except Exception:
+                    pass
+
+            if tokens and isinstance(tokens, list):
                 for device in tokens:
                     name = device.get("device_name", "").lower()
                     self._tokens[name] = device.get("local_auth_token", "")
                     self._devices[name] = device
             self._ready = True
+            self.status = "online"
             logger.info("Google Home ready: %d devices", len(self._devices))
 
         except ImportError:
+            self.status = "offline (glocaltokens not installed)"
             logger.warning("glocaltokens not installed.")
         except Exception as exc:
+            self.status = f"offline ({str(exc)})"
             logger.warning("Google Home init: %s", exc)
 
     def get_device(self, name: str) -> Optional[dict]:
