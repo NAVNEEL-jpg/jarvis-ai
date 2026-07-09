@@ -128,8 +128,141 @@ async def store_memory(payload: MemoryPayload):
 
 
 # ---------------------------------------------------------------------------
-# WebSocket chat endpoint
+# Control Panel Configuration Endpoints
 # ---------------------------------------------------------------------------
+class ConfigPayload(BaseModel):
+    amazon_email: str
+    amazon_password: str
+    alexa_region: str
+    google_home_email: str
+    google_home_password: str
+    supabase_url: str
+    supabase_anon_key: str
+
+def update_env_file(updates: dict[str, str]):
+    env_path = os.path.join(_PROJECT_ROOT, ".env")
+    lines = []
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    written = set()
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#") or not stripped:
+            new_lines.append(line)
+            continue
+        if "=" in stripped:
+            k = stripped.split("=")[0].strip()
+            if k in updates:
+                new_lines.append(f"{k}={updates[k]}\n")
+                written.add(k)
+                continue
+        new_lines.append(line)
+    for k, v in updates.items():
+        if k not in written:
+            new_lines.append(f"{k}={v}\n")
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(new_lines)
+
+@app.get("/api/config")
+async def get_config():
+    load_dotenv(os.path.join(_PROJECT_ROOT, ".env"), override=True)
+    return {
+        "amazon_email": os.getenv("AMAZON_EMAIL", ""),
+        "alexa_region": os.getenv("ALEXA_REGION", "amazon.in"),
+        "google_home_email": os.getenv("GOOGLE_HOME_EMAIL", ""),
+        "supabase_url": os.getenv("SUPABASE_URL", ""),
+        # Hide passwords/keys for safety but indicate presence
+        "has_amazon_password": bool(os.getenv("AMAZON_PASSWORD")),
+        "has_google_home_password": bool(os.getenv("GOOGLE_HOME_PASSWORD")),
+        "has_supabase_anon_key": bool(os.getenv("SUPABASE_ANON_KEY")),
+    }
+
+@app.post("/api/config")
+async def save_config(payload: ConfigPayload):
+    updates = {
+        "AMAZON_EMAIL": payload.amazon_email,
+        "ALEXA_REGION": payload.alexa_region,
+        "GOOGLE_HOME_EMAIL": payload.google_home_email,
+        "SUPABASE_URL": payload.supabase_url,
+    }
+    if payload.amazon_password:
+        updates["AMAZON_PASSWORD"] = payload.amazon_password
+    if payload.google_home_password:
+        updates["GOOGLE_HOME_PASSWORD"] = payload.google_home_password
+    if payload.supabase_anon_key:
+        updates["SUPABASE_ANON_KEY"] = payload.supabase_anon_key
+
+    try:
+        update_env_file(updates)
+        # Reload environment
+        load_dotenv(os.path.join(_PROJECT_ROOT, ".env"), override=True)
+        # Force re-initialization of backend router/trainer next time
+        global _router
+        _router = None
+        return {"success": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+# ---------------------------------------------------------------------------
+# Training Commands Endpoints
+# ---------------------------------------------------------------------------
+class TrainingPayload(BaseModel):
+    trigger: str
+    response: str
+    category: str = "general"
+
+@app.get("/api/training")
+async def get_training_commands():
+    router = _get_router()
+    return {"commands": router.trainer.get_commands()}
+
+@app.post("/api/training")
+async def add_training_command(payload: TrainingPayload):
+    router = _get_router()
+    res = router.trainer.add_command(payload.trigger, payload.response, payload.category)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error"))
+    return res
+
+@app.delete("/api/training/{command_id}")
+async def delete_training_command(command_id: int):
+    router = _get_router()
+    ok = router.trainer.delete_command(command_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to delete command.")
+    return {"success": True}
+
+@app.post("/api/training/{command_id}/toggle")
+async def toggle_training_command(command_id: int, enabled: bool):
+    router = _get_router()
+    ok = router.trainer.toggle_command(command_id, enabled)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to toggle command.")
+    return {"success": True}
+
+# ---------------------------------------------------------------------------
+# Smart Home Devices Endpoints
+# ---------------------------------------------------------------------------
+@app.get("/api/devices")
+async def list_devices():
+    router = _get_router()
+    devices = []
+    # 1. Alexa devices
+    if router.home.alexa.available and router.home.alexa._ready:
+        smart = router.home.alexa.list_smart_home()
+        devices.extend([{"name": d, "type": "Alexa Device"} for d in smart])
+    # 2. Google Home devices
+    if router.home.google.available and router.home.google._ready:
+        gdevices = router.home.google.list_devices()
+        devices.extend([{"name": gd, "type": "Google Home"} for gd in gdevices])
+    # 3. Home Assistant devices
+    if router.home.ha.available:
+        entities = router.home.ha.list_entities("light") + router.home.ha.list_entities("switch")
+        devices.extend([{"name": e.split(".")[-1].replace("_", " "), "type": "Home Assistant"} for e in entities])
+    return {"devices": devices}
+
 @app.websocket("/ws/chat")
 async def websocket_chat(ws: WebSocket):
     await ws.accept()
