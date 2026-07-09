@@ -9,7 +9,7 @@ SAMPLE_RATE = 16000
 CHUNK_SIZE = 1280
 
 WAKE_MODEL = "hey_jarvis"
-WAKE_THRESHOLD = 0.5
+WAKE_THRESHOLD = 0.35
 
 
 class JarvisWakeWord:

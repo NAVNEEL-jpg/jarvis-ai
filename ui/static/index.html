@@ -1025,24 +1025,33 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
 
     const text = (finalTranscript || interimTranscript).toLowerCase().trim();
     
-    // Check for "hey jarvis" wake word
-    if (text.includes('hey jarvis') || text.includes('hello jarvis') || text.includes('hey, jarvis')) {
-      // Find the index of the wake word
-      let trigger = 'jarvis';
-      if (text.includes('hey jarvis')) trigger = 'hey jarvis';
-      else if (text.includes('hello jarvis')) trigger = 'hello jarvis';
+    // Check for "hey jarvis" wake word or phonetic variations
+    const triggers = [
+      'hey jarvis', 'hello jarvis', 'hi jarvis', 'ok jarvis', 'hey, jarvis', 'jarvis',
+      'hey travis', 'hello travis', 'hey driver', 'hey java', 'hey garbage', 'hey chartres',
+      'page office', 'play office'
+    ];
 
-      const commandStartIndex = text.indexOf(trigger) + trigger.length;
-      const command = text.substring(commandStartIndex).trim();
+    let foundTrigger = null;
+    for (const trig of triggers) {
+      if (text.includes(trig)) {
+        foundTrigger = trig;
+        break;
+      }
+    }
+    
+    if (foundTrigger) {
+      const commandStartIndex = text.indexOf(foundTrigger) + foundTrigger.length;
+      const command = text.substring(commandStartIndex).trim().replace(/^[,.\s]+/, "");
 
-      if (command.length > 2) {
+      if (command.length > 1) {
         // Stop recognition momentarily to prevent echo loop
         recognition.stop();
         toast(`Wake word triggered! Command: "${command}"`);
         addMessage('user', command, null);
         send(command);
       } else if (e.results[e.results.length - 1].isFinal) {
-        // If they just said "Hey Jarvis"
+        // If they just said the wake phrase
         recognition.stop();
         toast("Jarvis activated.");
         const activationReply = "Yes, sir? How can I help you?";
