@@ -73,16 +73,32 @@ class JarvisBrain:
         response = ollama.chat(
             model=self.model,
             messages=self.history,
-            think=False,
             keep_alive="30m",
             options={
                 "temperature": 0.2,
                 "num_ctx": 2048,
-                "num_predict": 80,
+                "num_predict": 350,
             },
         )
 
-        answer = response["message"]["content"].strip()
+        # 1. Retrieve the content
+        answer = getattr(response.get("message"), "content", "").strip()
+
+        # 2. Support older Ollama versions that return <think> tags in content
+        import re
+        answer = re.sub(r"(?i)<think>.*?</think>", "", answer, flags=re.DOTALL).strip()
+        answer = re.sub(r"(?i)<think>.*", "", answer, flags=re.DOTALL).strip()
+
+        # 3. Fallback: if content is empty but thinking was captured
+        if not answer:
+            thinking = getattr(response.get("message"), "thinking", "").strip()
+            if thinking:
+                # If the model spent all tokens thinking and left no content,
+                # let's try to extract a quick answer or give a polite default
+                print("[Brain Warning] Model ran out of tokens during thinking.")
+                answer = "I apologize, sir. I got lost in thought. Could you ask that again?"
+            else:
+                answer = "I'm not sure how to answer that, sir."
 
         self.history.append(
             {
