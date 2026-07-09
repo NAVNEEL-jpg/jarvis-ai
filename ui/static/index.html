@@ -1062,11 +1062,15 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   };
 
   recognition.onend = () => {
-    // If wakeListening is active, restart recognition immediately
+    // If wakeListening is active, restart recognition after a short delay
     if (wakeListening && !isRecording) {
-      try {
-        recognition.start();
-      } catch (err) {}
+      setTimeout(() => {
+        try {
+          if (wakeListening && !isRecording) {
+            recognition.start();
+          }
+        } catch (err) {}
+      }, 1200); // 1.2s delay gives the browser time to cleanly reset socket
     } else {
       isRecording = false;
       micBtn.classList.remove('recording');
@@ -1075,7 +1079,8 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   };
 
   recognition.onerror = (e) => {
-    if (e.error !== 'no-speech' && e.error !== 'aborted') {
+    // Ignore normal network/no-speech timeout alerts
+    if (e.error !== 'no-speech' && e.error !== 'aborted' && e.error !== 'network') {
       toast('Speech recognition error: ' + e.error);
     }
   };
