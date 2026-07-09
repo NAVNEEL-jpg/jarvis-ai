@@ -224,44 +224,35 @@ class TTSWorker(QThread):
 
 
 class ListenWorker(QThread):
-    """Records from microphone and transcribes via faster-whisper."""
+    """Records from microphone using pre-loaded Silero VAD and transcribes via faster-whisper."""
     transcript_ready = pyqtSignal(str)
     error            = pyqtSignal(str)
 
+    def __init__(self, recorder, stt):
+        super().__init__()
+        self.recorder = recorder
+        self.stt      = stt
+
     def run(self):
         try:
-            import sounddevice as sd
-            from stt import JarvisSTT
-
-            stt = JarvisSTT(model_size="small.en", device="cpu", compute_type="int8")
-
-            # Record for up to RECORD_SECS seconds, 16 kHz mono
-            audio = sd.rec(
-                int(RECORD_SECS * SAMPLE_RATE),
-                samplerate=SAMPLE_RATE,
-                channels=1,
-                dtype="float32",
-            )
-            sd.wait()
-
-            audio = audio.flatten()
+            import tempfile
+            import os
 
             # Write to a temp WAV
-            import wave, struct
             tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
             tmp.close()
 
-            with wave.open(tmp.name, "wb") as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(SAMPLE_RATE)
-                pcm = (audio * 32767).astype(np.int16)
-                wf.writeframes(pcm.tobytes())
+            # Record using the pre-loaded Silero VAD recorder
+            audio_path = self.recorder.record(output_file=tmp.name)
 
-            text = stt.transcribe(tmp.name)
+            if audio_path is None:
+                self.transcript_ready.emit("")
+                return
+
+            text = self.stt.transcribe(audio_path)
 
             try:
-                os.remove(tmp.name)
+                os.remove(audio_path)
             except OSError:
                 pass
 
@@ -269,6 +260,32 @@ class ListenWorker(QThread):
 
         except Exception as exc:
             self.error.emit(str(exc))
+
+
+class WakeWordWorker(QThread):
+    """Listens for the wake word 'Hey Jarvis' in a background thread."""
+    detected = pyqtSignal()
+    error    = pyqtSignal(str)
+
+    def __init__(self, wake_word):
+        super().__init__()
+        self.wake_word = wake_word
+        self.active    = True
+
+    def run(self):
+        try:
+            while self.active:
+                # Blocks until wake word is detected
+                is_detected = self.wake_word.wait()
+                if is_detected and self.active:
+                    self.detected.emit()
+                    break
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+    def stop(self):
+        self.active = False
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -601,12 +618,25 @@ class JarvisWindow(QWidget):
         def _load():
             from brain import JarvisBrain
             from router import JarvisRouter
-            brain = JarvisBrain()
-            router = JarvisRouter(brain=brain)
-            return router
+            from stt import JarvisSTT
+            from vad_recorder import SileroRecorder
+            from wake_word import JarvisWakeWord
+
+            brain     = JarvisBrain()
+            router    = JarvisRouter(brain=brain)
+            stt       = JarvisSTT(model_size="small.en", device="cpu", compute_type="int8")
+            recorder  = SileroRecorder()
+            wake_word = JarvisWakeWord()
+
+            return {
+                "router":    router,
+                "stt":       stt,
+                "recorder":  recorder,
+                "wake_word": wake_word,
+            }
 
         class LoadWorker(QThread):
-            done  = pyqtSignal(object)
+            done  = pyqtSignal(dict)
             error = pyqtSignal(str)
             def run(self_):
                 try:
@@ -620,12 +650,17 @@ class JarvisWindow(QWidget):
         w.start()
         self._workers.append(w)
 
-    def _on_backend_ready(self, router):
-        self._router = router
-        mem = router.memory.available
+    def _on_backend_ready(self, data):
+        self._router    = data["router"]
+        self._stt       = data["stt"]
+        self._recorder  = data["recorder"]
+        self._wake_word = data["wake_word"]
+
+        mem = self._router.memory.available
         self._val_memory.setText("SUPABASE" if mem else "LOCAL")
         self._append("jarvis", "All systems online. How may I assist you, sir?")
         self._set_status(self.STATUS_IDLE)
+        self._start_wake_listener()
 
     # ── TTS health check ──────────────────────────────────────────────────────
 
@@ -661,6 +696,7 @@ class JarvisWindow(QWidget):
             self._append("jarvis", "Still initialising, sir. Please wait a moment.")
             return
 
+        self._stop_wake_listener()
         self.text_input.clear()
         self._append("user", text)
         self._process(text)
@@ -670,11 +706,12 @@ class JarvisWindow(QWidget):
             self.mic_btn.setChecked(False)
             return
 
+        self._stop_wake_listener()
         self._set_status(self.STATUS_LISTENING)
         self._set_busy(True)
         self._append("jarvis", "Listening…")
 
-        w = ListenWorker()
+        w = ListenWorker(self._recorder, self._stt)
         w.transcript_ready.connect(self._on_transcript)
         w.error.connect(self._on_listen_error)
         w.start()
@@ -687,6 +724,7 @@ class JarvisWindow(QWidget):
         if not text.strip():
             self._append("jarvis", "I didn't catch anything, sir.")
             self._set_status(self.STATUS_IDLE)
+            self._start_wake_listener()
             return
 
         self._append("user", text)
@@ -697,6 +735,7 @@ class JarvisWindow(QWidget):
         self._set_busy(False)
         self._append("jarvis", f"Microphone error: {err}")
         self._set_status(self.STATUS_IDLE)
+        self._start_wake_listener()
 
     # ── AI processing ─────────────────────────────────────────────────────────
 
@@ -730,10 +769,43 @@ class JarvisWindow(QWidget):
         self._append("jarvis", f"⚠ Error: {err}")
         self._set_status(self.STATUS_IDLE)
         self._set_busy(False)
+        self._start_wake_listener()
 
     def _on_tts_done(self):
         self._set_status(self.STATUS_IDLE)
         self._set_busy(False)
+        self._start_wake_listener()
+
+    # ── wake word listener control ────────────────────────────────────────────
+
+    def _start_wake_listener(self):
+        """Non-blocking start of the background wake word listener."""
+        if not hasattr(self, "_wake_word") or self._status != self.STATUS_IDLE:
+            return
+
+        self._stop_wake_listener()
+
+        self._wake_worker = WakeWordWorker(self._wake_word)
+        self._wake_worker.detected.connect(self._on_wake_detected)
+        self._wake_worker.error.connect(lambda e: print(f"[WakeWordWorker] Error: {e}"))
+        self._wake_worker.start()
+
+    def _stop_wake_listener(self):
+        """Stop background wake word listener to free up the microphone."""
+        if hasattr(self, "_wake_worker") and self._wake_worker:
+            self._wake_worker.stop()
+            self._wake_worker.wait()
+            self._wake_worker = None
+
+    def _on_wake_detected(self):
+        """Callback when 'Hey Jarvis' is heard."""
+        # Visual cue and trigger recording
+        self._on_mic()
+
+    def closeEvent(self, event):
+        """Cleanup thread worker upon window closing."""
+        self._stop_wake_listener()
+        super().closeEvent(event)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
