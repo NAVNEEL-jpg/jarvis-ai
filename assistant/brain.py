@@ -10,9 +10,8 @@ load_dotenv(
     )
 )
 
-
 class JarvisBrain:
-    def __init__(self, model="qwen3:4b"):
+    def __init__(self, model="qwen3:0.6b"):
         self.model = model
 
         self.system_prompt = (
