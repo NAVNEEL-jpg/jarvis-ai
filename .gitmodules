@@ -1,0 +1,3 @@
+[submodule "external/JarvisLuxTTS"]
+	path = external/JarvisLuxTTS
+	url = https://github.com/codewithbro95/JarvisLuxTTS.git
