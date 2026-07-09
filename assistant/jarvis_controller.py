@@ -42,15 +42,21 @@ UI_SERVER_SCRIPT = os.path.join(
     "ui_server.py",
 )
 
+DESKTOP_GUI_SCRIPT = os.path.join(
+    PROJECT_ROOT,
+    "ui",
+    "jarvis_desktop.py",
+)
+
 TTS_DIR = os.path.join(
     PROJECT_ROOT,
     "external",
     "JarvisLuxTTS",
 )
 
-HEALTH_URL  = "http://127.0.0.1:8765/health"
-UI_URL      = "http://localhost:3000"
-UI_STATUS   = "http://localhost:3000/status"
+HEALTH_URL = "http://127.0.0.1:8765/health"
+UI_URL     = "http://localhost:3000"
+UI_STATUS  = "http://localhost:3000/status"
 
 CREATE_NEW_CONSOLE = subprocess.CREATE_NEW_CONSOLE
 
@@ -60,6 +66,7 @@ class JarvisController:
         self.tts_process       = None
         self.assistant_process = None
         self.ui_process        = None
+        self.desktop_process   = None
 
         self.lock = threading.Lock()
 
@@ -81,6 +88,10 @@ class JarvisController:
                     self.stop_from_menu,
                 ),
                 pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "Launch Desktop GUI",
+                    self.launch_desktop_from_menu,
+                ),
                 pystray.MenuItem(
                     "Open Web UI",
                     self.open_ui_from_menu,
@@ -247,6 +258,36 @@ class JarvisController:
         return True
 
     # --------------------------------------------------
+    # START DESKTOP GUI
+    # --------------------------------------------------
+
+    def start_desktop(self):
+        """Launch the PyQt5 Iron Man-style desktop GUI."""
+        if self.process_running(self.desktop_process):
+            print("Desktop GUI is already running.")
+            return True
+
+        if not os.path.exists(DESKTOP_GUI_SCRIPT):
+            print(f"Desktop GUI script not found: {DESKTOP_GUI_SCRIPT}")
+            return False
+
+        print("Launching JARVIS Desktop GUI...")
+        self.desktop_process = subprocess.Popen(
+            [MAIN_PYTHON, DESKTOP_GUI_SCRIPT],
+            cwd=PROJECT_ROOT,
+            creationflags=CREATE_NEW_CONSOLE,
+        )
+
+        time.sleep(1)
+
+        if self.desktop_process.poll() is not None:
+            print("Desktop GUI exited unexpectedly.")
+            return False
+
+        print("Desktop GUI launched.")
+        return True
+
+    # --------------------------------------------------
     # START COMPLETE JARVIS SYSTEM
     # --------------------------------------------------
 
@@ -286,10 +327,12 @@ class JarvisController:
     def stop_jarvis(self):
         with self.lock:
             self.stop_process(self.assistant_process, "JARVIS assistant")
+            self.stop_process(self.desktop_process,   "JARVIS Desktop GUI")
             self.stop_process(self.ui_process,        "JARVIS Web UI")
             self.stop_process(self.tts_process,       "JARVIS TTS server")
 
             self.assistant_process = None
+            self.desktop_process   = None
             self.ui_process        = None
             self.tts_process       = None
 
@@ -323,6 +366,13 @@ class JarvisController:
     def restart_from_menu(self, icon, item):
         threading.Thread(
             target=self.restart_jarvis,
+            daemon=True,
+        ).start()
+
+    def launch_desktop_from_menu(self, icon, item):
+        """Launch the PyQt5 desktop GUI."""
+        threading.Thread(
+            target=self.start_desktop,
             daemon=True,
         ).start()
 
@@ -361,6 +411,7 @@ class JarvisController:
         print("Controller started.")
         print("Look for the JARVIS icon in the system tray.")
         print(f"Web UI will be available at {UI_URL}")
+        print("Right-click tray → Launch Desktop GUI for Iron Man UI")
 
         # Automatically start JARVIS.
         threading.Thread(
