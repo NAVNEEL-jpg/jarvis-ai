@@ -1117,22 +1117,33 @@ micBtn.addEventListener('click', () => {
 /* ------------------------------------------------------------------ */
 let ttsEnabled = true;
 
+let activeUtterance = null;
+let ttsFallbackTimer = null;
+
 function speakText(text) {
   if (!ttsEnabled || !window.speechSynthesis) return;
+  
+  // Clear any existing fallback timers
+  clearTimeout(ttsFallbackTimer);
   
   // Pause wake listening while speaking to prevent self-triggering
   if (recognition) {
     wakeListening = false;
-    recognition.stop();
+    try {
+      recognition.stop();
+    } catch(e) {}
   }
 
   window.speechSynthesis.cancel();
+  
   const utt = new SpeechSynthesisUtterance(text);
   utt.rate  = 1.0;
   utt.pitch = 0.9;
   utt.volume = 1.0;
 
-  // Pick a deep/clear voice if available
+  // Store globally to prevent garbage collection in Chrome
+  window.activeUtterance = utt;
+
   const voices = window.speechSynthesis.getVoices();
   const preferred = voices.find(v =>
     v.lang.startsWith('en') && (v.name.includes('David') || v.name.includes('Google UK') || v.name.includes('Male'))
@@ -1140,17 +1151,37 @@ function speakText(text) {
 
   if (preferred) utt.voice = preferred;
 
-  utt.onend = () => {
-    // Resume wake listening after speaking finishes
-    setTimeout(() => {
-      wakeListening = true;
-      if (recognition) {
-        try {
-          recognition.start();
-        } catch (e) {}
-      }
-    }, 500);
+  const resumeWake = () => {
+    clearTimeout(ttsFallbackTimer);
+    if (!wakeListening) {
+      setTimeout(() => {
+        wakeListening = true;
+        if (recognition) {
+          try {
+            recognition.start();
+          } catch (e) {}
+        }
+      }, 400);
+    }
   };
+
+  utt.onend = () => {
+    resumeWake();
+  };
+
+  utt.onerror = () => {
+    resumeWake();
+  };
+
+  // Safe duration estimation (approx. 400ms per word + 2.5 seconds padding)
+  const wordCount = text.split(/\s+/).length;
+  const estimatedDuration = (wordCount * 400) + 2500;
+
+  // Fallback timer in case Chrome speech synthesis gets stuck
+  ttsFallbackTimer = setTimeout(() => {
+    console.log("[TTS Warn] SpeechSynthesis onend didn't fire. Resetting wake-word listener.");
+    resumeWake();
+  }, estimatedDuration);
 
   window.speechSynthesis.speak(utt);
 }
