@@ -12,7 +12,7 @@
 | 🎙 **Wake word** | `"Hey Jarvis"` via openWakeWord |
 | 🎤 **Speech-to-text** | faster-whisper (`small.en`, CPU) |
 | 🧠 **AI Brain** | Ollama `qwen3:4b` — runs 100% offline |
-| 🔊 **Voice** | JARVIS Lux TTS (custom neural voice) |
+| 🔊 **Voice** | [JarvisLuxTTS](https://github.com/codewithbro95/JarvisLuxTTS) — LuxTTS neural voice (48 kHz, voice-cloned) |
 | 🖥 **Automation** | Open apps, websites, system status |
 | 💾 **Memory** | Supabase-backed persistent memory |
 | 🌐 **Web UI** | Browser dashboard at `http://localhost:3000` |
@@ -49,6 +49,25 @@ jarvis-ai/
 ├── .env                    # Secrets (not committed)
 ├── .env.example            # Env template
 └── jarvis_controller.py    # Root launcher
+```
+
+---
+
+## TTS Voice Engine
+
+The voice engine is sourced from **[codewithbro95/JarvisLuxTTS](https://github.com/codewithbro95/JarvisLuxTTS)**, registered as a git submodule at `external/JarvisLuxTTS`.
+
+It is a customized adaptation of [LuxTTS by YatharthS](https://github.com/ysharma3501/LuxTTS) — a voice-cloning TTS system generating 48 kHz speech from a reference audio sample (`sample.mp3`).
+
+**Local additions on top of the upstream repo** (not committed upstream):
+- `tts_server.py` — FastAPI wrapper exposing `/health` and `/speak` endpoints on port 8765
+- `audio.py` (modified) — Windows-specific fixes: `sounddevice` playback, trailing silence padding, CUDA device handling
+
+### Clone with submodule (for fresh installs)
+```bash
+git clone --recurse-submodules https://github.com/NAVNEEL-jpg/jarvis-ai.git
+# or after cloning:
+git submodule update --init --recursive
 ```
 
 ---
