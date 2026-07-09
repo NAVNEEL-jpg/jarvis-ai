@@ -98,10 +98,11 @@ class AlexaBridge:
     def _start_loop(self):
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
-        try:
-            self._init_async()
-        except Exception as e:
-            self.status = f"offline ({str(e)})"
+        
+        # Schedule the initialization coroutine
+        asyncio.run_coroutine_threadsafe(self._init_async(), self._loop)
+        
+        # Start the loop (blocks and runs scheduled tasks)
         self._loop.run_forever()
 
     def _run(self, coro):
@@ -111,7 +112,7 @@ class AlexaBridge:
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         return future.result()
 
-    def _init_async(self):
+    async def _init_async(self):
         try:
             from alexapy import AlexaLogin, AlexaAPI
 
@@ -129,8 +130,8 @@ class AlexaBridge:
                 path_helper,
                 debug=False,
             )
-            # Submit login to the loop
-            self._run(login.login())
+            # Await the login directly on the running loop
+            await login.login()
 
             if not login.status.get("login_successful"):
                 self.status = f"offline (Login failed: {login.status})"
@@ -141,7 +142,7 @@ class AlexaBridge:
             self._api   = AlexaAPI
 
             # Cache device list
-            raw = self._run(AlexaAPI.get_devices(login))
+            raw = await AlexaAPI.get_devices(login)
             if raw:
                 for d in raw:
                     name = d.get("accountName", "").lower()
