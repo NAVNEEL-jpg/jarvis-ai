@@ -48,6 +48,12 @@ DESKTOP_GUI_SCRIPT = os.path.join(
     "jarvis_desktop.py",
 )
 
+CONTROL_PANEL_SCRIPT = os.path.join(
+    PROJECT_ROOT,
+    "ui",
+    "controlpanel.py",
+)
+
 TTS_DIR = os.path.join(
     PROJECT_ROOT,
     "external",
@@ -63,10 +69,11 @@ CREATE_NEW_CONSOLE = subprocess.CREATE_NEW_CONSOLE
 
 class JarvisController:
     def __init__(self):
-        self.tts_process       = None
-        self.assistant_process = None
-        self.ui_process        = None
-        self.desktop_process   = None
+        self.tts_process          = None
+        self.assistant_process     = None
+        self.ui_process            = None
+        self.desktop_process       = None
+        self.control_panel_process = None
 
         self.lock = threading.Lock()
 
@@ -91,6 +98,10 @@ class JarvisController:
                 pystray.MenuItem(
                     "Launch Desktop GUI",
                     self.launch_desktop_from_menu,
+                ),
+                pystray.MenuItem(
+                    "Open Control Panel",
+                    self.launch_control_panel_from_menu,
                 ),
                 pystray.MenuItem(
                     "Open Web UI",
@@ -288,6 +299,36 @@ class JarvisController:
         return True
 
     # --------------------------------------------------
+    # START CONTROL PANEL
+    # --------------------------------------------------
+
+    def start_control_panel(self):
+        """Launch the PyQt5 Control Panel (Auth + Commands + Training + Devices)."""
+        if self.process_running(self.control_panel_process):
+            print("Control Panel is already running.")
+            return True
+
+        if not os.path.exists(CONTROL_PANEL_SCRIPT):
+            print(f"Control Panel script not found: {CONTROL_PANEL_SCRIPT}")
+            return False
+
+        print("Launching JARVIS Control Panel...")
+        self.control_panel_process = subprocess.Popen(
+            [MAIN_PYTHON, CONTROL_PANEL_SCRIPT],
+            cwd=PROJECT_ROOT,
+            creationflags=CREATE_NEW_CONSOLE,
+        )
+
+        time.sleep(1)
+
+        if self.control_panel_process.poll() is not None:
+            print("Control Panel exited unexpectedly.")
+            return False
+
+        print("Control Panel launched.")
+        return True
+
+    # --------------------------------------------------
     # START COMPLETE JARVIS SYSTEM
     # --------------------------------------------------
 
@@ -326,15 +367,17 @@ class JarvisController:
 
     def stop_jarvis(self):
         with self.lock:
-            self.stop_process(self.assistant_process, "JARVIS assistant")
-            self.stop_process(self.desktop_process,   "JARVIS Desktop GUI")
-            self.stop_process(self.ui_process,        "JARVIS Web UI")
-            self.stop_process(self.tts_process,       "JARVIS TTS server")
+            self.stop_process(self.assistant_process,     "JARVIS assistant")
+            self.stop_process(self.desktop_process,       "JARVIS Desktop GUI")
+            self.stop_process(self.control_panel_process, "JARVIS Control Panel")
+            self.stop_process(self.ui_process,            "JARVIS Web UI")
+            self.stop_process(self.tts_process,           "JARVIS TTS server")
 
-            self.assistant_process = None
-            self.desktop_process   = None
-            self.ui_process        = None
-            self.tts_process       = None
+            self.assistant_process     = None
+            self.desktop_process       = None
+            self.control_panel_process = None
+            self.ui_process            = None
+            self.tts_process           = None
 
             print("JARVIS stopped.")
 
@@ -373,6 +416,13 @@ class JarvisController:
         """Launch the PyQt5 desktop GUI."""
         threading.Thread(
             target=self.start_desktop,
+            daemon=True,
+        ).start()
+
+    def launch_control_panel_from_menu(self, icon, item):
+        """Launch the JARVIS Control Panel."""
+        threading.Thread(
+            target=self.start_control_panel,
             daemon=True,
         ).start()
 

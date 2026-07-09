@@ -2,21 +2,33 @@ import re
 
 from memory import JarvisMemory
 from smart_home import JarvisSmartHome
+from trainer import JarvisTrainer
 from tools import JarvisTools
 
 
 class JarvisRouter:
     def __init__(self, brain):
-        self.brain  = brain
-        self.tools  = JarvisTools()
-        self.memory = JarvisMemory()
-        self.home   = JarvisSmartHome()
+        self.brain   = brain
+        self.tools   = JarvisTools()
+        self.memory  = JarvisMemory()
+        self.home    = JarvisSmartHome()
+        self.trainer = JarvisTrainer()
 
     def route(self, text):
         normalized = text.lower().strip()
 
         # Remove trailing punctuation Whisper may add.
         normalized = normalized.rstrip(".?!")
+
+        # ------------------------------------------
+        # TRAINED COMMANDS (highest priority)
+        # Custom trigger → response pairs set via
+        # the Control Panel and stored in Supabase.
+        # ------------------------------------------
+
+        trained = self.trainer.find_match(normalized)
+        if trained:
+            return trained
 
         # ------------------------------------------
         # MEMORY — STORE A FACT
