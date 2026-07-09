@@ -169,6 +169,28 @@ class JarvisRouter:
             g = turn_off_pat.groupdict()
             return self.home.turn_off(g["device"], g.get("room"))
 
+        # Relative Brightness / Color adjustment
+        relative_pat = re.match(
+            r"^(?P<action>increase|decrease|brighten|dim|cool|warm)\s+"
+            r"(?:the\s+)?(?:brightness\s+of\s+|color\s+temperature\s+of\s+|color\s+of\s+)?"
+            r"(?P<device>[\w\s]+?)\s+"
+            r"(?:by\s+)?(?P<amount>\d+)\s*(?:percent|%)?$",
+            normalized
+        )
+        if relative_pat:
+            g = relative_pat.groupdict()
+            action = g["action"]
+            device = g["device"].strip()
+            amount = int(g["amount"])
+            
+            is_color = "color" in normalized or action in ["cool", "warm"]
+            if is_color:
+                delta = amount if action in ["increase", "cool"] else -amount
+                return self.home.adjust_color_temp(device, delta)
+            else:
+                delta = amount if action in ["increase", "brighten"] else -amount
+                return self.home.adjust_brightness(device, delta)
+
         # ------------------------------------------
         # SMART HOME — BRIGHTNESS
         # "set living room lights to 70 percent"

@@ -698,6 +698,39 @@ class JarvisSmartHome:
                 return f"Setting {target} color to {color}." if ok else "Could not reach Home Assistant."
         return self._not_configured()
 
+    def adjust_brightness(self, device: str, delta: int) -> str:
+        if self.ha.available:
+            entity = self.ha.find_entity(device, domain="light")
+            if entity:
+                state = self.ha.get_state(entity)
+                if state:
+                    current_brightness = state.get("attributes", {}).get("brightness", 0)
+                    current_pct = round((current_brightness / 255.0) * 100)
+                    new_pct = max(1, min(100, current_pct + delta))
+                    ok = self.ha.turn_on(entity, brightness_pct=new_pct)
+                    if ok:
+                        return f"Adjusted {device} brightness by {delta}% to {new_pct}%."
+                    return f"Could not adjust brightness for {device}."
+        return self._not_configured()
+
+    def adjust_color_temp(self, device: str, delta: int) -> str:
+        if self.ha.available:
+            entity = self.ha.find_entity(device, domain="light")
+            if entity:
+                state = self.ha.get_state(entity)
+                if state:
+                    current_kelvin = state.get("attributes", {}).get("color_temp_kelvin", 2700)
+                    min_k, max_k = 2000, 6500
+                    current_pct = round(((current_kelvin - min_k) / (max_k - min_k)) * 100)
+                    new_pct = max(0, min(100, current_pct + delta))
+                    new_kelvin = int(min_k + (new_pct / 100.0) * (max_k - min_k))
+                    ok = self.ha.turn_on(entity, color_temp_kelvin=new_kelvin)
+                    if ok:
+                        direction = "cooler" if delta > 0 else "warmer"
+                        return f"Setting {device} color temperature {direction} by {abs(delta)}% to {new_pct}% ({new_kelvin}K)."
+                    return f"Could not adjust color temperature for {device}."
+        return self._not_configured()
+
     # ── TEMPERATURE ───────────────────────────────────────────────────────────
 
     def set_temperature(self, device: str, degrees: float) -> str:
