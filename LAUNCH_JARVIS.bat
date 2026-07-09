@@ -11,6 +11,18 @@ echo  Initializing voice server, web dashboard, and desktop GUI...
 echo ============================================================
 echo.
 
+:: 0. Start Home Assistant VM (headless) if not already running
+echo [0/4] Checking Home Assistant VM...
+"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" list runningvms | findstr "Home Assistant" >nul
+if errorlevel 1 (
+    echo Starting Home Assistant VM in background...
+    "C:\Program Files\Oracle\VirtualBox\VBoxManage.exe" startvm "Home Assistant" --type headless >nul 2>&1
+) else (
+    echo Home Assistant VM is already running.
+)
+echo [OK] Home Assistant active.
+echo.
+
 :: 1. Start JARVIS Voice Server
 echo [1/4] Starting Voice Server...
 start "JARVIS Voice Server" /min cmd /c ^
