@@ -205,20 +205,41 @@ async def get_log(limit: int = 50):
     return {"log": _conversation_log[-limit:]}
 
 
+def get_local_ip() -> str:
+    """Return the local network IP address of this machine."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
 
-    print("=" * 50)
+    local_ip = get_local_ip()
+
+    print("=" * 60)
     print("JARVIS WEB UI SERVER")
-    print("=" * 50)
-    print(f"  Dashboard : http://localhost:3000")
-    print(f"  WebSocket : ws://localhost:3000/ws/chat")
-    print(f"  Status    : http://localhost:3000/status")
-    print(f"  Memory    : http://localhost:3000/memory")
-    print("=" * 50)
+    print("=" * 60)
+    print(f"  Local Dashboard   : http://localhost:3000")
+    print(f"  Wi-Fi Network URL : http://{local_ip}:3000")
+    print(f"  WebSocket         : ws://{local_ip}:3000/ws/chat")
+    print(f"  Status Endpoint   : http://{local_ip}:3000/status")
+    print("-" * 60)
+    print("  To access JARVIS from mobiles or laptops:")
+    print("  1. Connect them to the SAME Wi-Fi network.")
+    print(f"  2. Open the URL: http://{local_ip}:3000 in the browser.")
+    print("  Note: If connection fails, make sure Python is allowed")
+    print("  through your Windows Defender Firewall settings.")
+    print("=" * 60)
 
     uvicorn.run(
         app,
