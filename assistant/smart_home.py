@@ -49,19 +49,7 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# ── env ────────────────────────────────────────────────────────────────────────
-
-AMAZON_EMAIL      = os.getenv("AMAZON_EMAIL", "")
-AMAZON_PASSWORD   = os.getenv("AMAZON_PASSWORD", "")
-ALEXA_REGION      = os.getenv("ALEXA_REGION", "amazon.in")   # amazon.in / amazon.com
-
-GOOGLE_HOME_EMAIL    = os.getenv("GOOGLE_HOME_EMAIL", "")
-GOOGLE_HOME_PASSWORD = os.getenv("GOOGLE_HOME_PASSWORD", "")
-
-HA_URL    = os.getenv("HA_URL", "").rstrip("/")
-HA_TOKEN  = os.getenv("HA_TOKEN", "")
-
-TUYA_DEVICES_RAW = os.getenv("TUYA_DEVICES", "{}")
+# Configurations are read dynamically inside each bridge to allow updating without server reboots.
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,9 +66,9 @@ class AlexaBridge:
     """
 
     def __init__(self):
-        self.email    = AMAZON_EMAIL
-        self.password = AMAZON_PASSWORD
-        self.url      = f"https://www.{ALEXA_REGION}"
+        self.email    = os.getenv("AMAZON_EMAIL", "")
+        self.password = os.getenv("AMAZON_PASSWORD", "")
+        self.url      = f"https://www.{os.getenv('ALEXA_REGION', 'amazon.in')}"
         self.available = bool(self.email and self.password)
         self.status   = "idle" if not self.available else "connecting"
         self._login   = None
@@ -305,8 +293,8 @@ class GoogleHomeBridge:
     """
 
     def __init__(self):
-        self.email    = GOOGLE_HOME_EMAIL
-        self.password = GOOGLE_HOME_PASSWORD
+        self.email    = os.getenv("GOOGLE_HOME_EMAIL", "")
+        self.password = os.getenv("GOOGLE_HOME_PASSWORD", "")
         self.available = bool(self.email and self.password)
         self.status   = "idle" if not self.available else "connecting"
         self._devices = {}   # name → HomeMiniInfo
@@ -401,8 +389,8 @@ class GoogleHomeBridge:
 
 class HomeAssistantBridge:
     def __init__(self):
-        self.base  = HA_URL
-        self.token = HA_TOKEN
+        self.base  = os.getenv("HA_URL", "").rstrip("/")
+        self.token = os.getenv("HA_TOKEN", "")
         self.available = bool(self.base and self.token)
 
     def _headers(self) -> dict:
@@ -479,7 +467,7 @@ class HomeAssistantBridge:
 class TuyaBridge:
     def __init__(self):
         try:
-            self._devices = json.loads(TUYA_DEVICES_RAW)
+            self._devices = json.loads(os.getenv("TUYA_DEVICES", "{}"))
         except Exception:
             self._devices = {}
         self.available = bool(self._devices)
