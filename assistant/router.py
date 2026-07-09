@@ -1,14 +1,16 @@
 import re
 
 from memory import JarvisMemory
+from smart_home import JarvisSmartHome
 from tools import JarvisTools
 
 
 class JarvisRouter:
     def __init__(self, brain):
-        self.brain = brain
-        self.tools = JarvisTools()
+        self.brain  = brain
+        self.tools  = JarvisTools()
         self.memory = JarvisMemory()
+        self.home   = JarvisSmartHome()
 
     def route(self, text):
         normalized = text.lower().strip()
@@ -93,6 +95,151 @@ class JarvisRouter:
                     else:
                         # Fall through to brain for normal answer
                         pass
+
+        # ------------------------------------------
+        # SMART HOME — TURN ON
+        # "turn on living room lights"
+        # "turn on the fan"
+        # "switch on bedroom lights at 50 percent"
+        # ------------------------------------------
+
+        turn_on_pat = re.match(
+            r"(?:turn|switch|put)\s+on\s+(?:the\s+)?"
+            r"(?:(?P<room>living room|bedroom|kitchen|bathroom|office|all)\s+)?"
+            r"(?P<device>lights?|lamp|fan|ac|tv|television|heater|plug|switch|speaker|all lights?)"
+            r"(?:\s+(?:at|to)\s+(?P<brightness>\d+)\s*(?:percent|%))?",
+            normalized,
+        )
+        if turn_on_pat:
+            g = turn_on_pat.groupdict()
+            b = int(g["brightness"]) if g.get("brightness") else None
+            return self.home.turn_on(g["device"], g.get("room"), brightness=b)
+
+        # ------------------------------------------
+        # SMART HOME — TURN OFF
+        # "turn off the lights"
+        # "switch off all lights"
+        # ------------------------------------------
+
+        turn_off_pat = re.match(
+            r"(?:turn|switch|put)\s+off\s+(?:the\s+)?"
+            r"(?:(?P<room>living room|bedroom|kitchen|bathroom|office|all)\s+)?"
+            r"(?P<device>lights?|lamp|fan|ac|tv|television|heater|plug|switch|speaker|all lights?)",
+            normalized,
+        )
+        if turn_off_pat:
+            g = turn_off_pat.groupdict()
+            return self.home.turn_off(g["device"], g.get("room"))
+
+        # ------------------------------------------
+        # SMART HOME — BRIGHTNESS
+        # "set living room lights to 70 percent"
+        # "dim bedroom lights to 30"
+        # ------------------------------------------
+
+        brightness_pat = re.match(
+            r"(?:set|dim|brighten)\s+"
+            r"(?:(?P<room>living room|bedroom|kitchen|bathroom|office)\s+)?"
+            r"(?P<device>lights?|lamp)\s+"
+            r"(?:to|at)\s+(?P<level>\d+)\s*(?:percent|%)?",
+            normalized,
+        )
+        if brightness_pat:
+            g = brightness_pat.groupdict()
+            return self.home.set_brightness(
+                g["device"], g.get("room", ""), int(g["level"])
+            )
+
+        # ------------------------------------------
+        # SMART HOME — TEMPERATURE
+        # "set thermostat to 22 degrees"
+        # "set ac to 20"
+        # "what is the living room temperature"
+        # ------------------------------------------
+
+        set_temp_pat = re.match(
+            r"(?:set|put)\s+"
+            r"(?:the\s+)?(?P<device>thermostat|ac|air conditioner|heater|climate)\s+"
+            r"(?:to|at)\s+(?P<degrees>\d+(?:\.\d+)?)\s*(?:degrees?|°)?",
+            normalized,
+        )
+        if set_temp_pat:
+            g = set_temp_pat.groupdict()
+            return self.home.set_temperature(g["device"], float(g["degrees"]))
+
+        get_temp_pat = re.match(
+            r"(?:what(?:'s| is) the\s+)?"
+            r"(?P<room>living room|bedroom|kitchen|bathroom|office|home)?\s*"
+            r"(?:temperature|temp|heat)\??",
+            normalized,
+        )
+        if get_temp_pat and any(
+            w in normalized for w in ("temperature", "temp", "how hot", "how cold", "warm")
+        ):
+            g = get_temp_pat.groupdict()
+            return self.home.get_temperature(g.get("room") or "thermostat")
+
+        # ------------------------------------------
+        # SMART HOME — LOCK / UNLOCK
+        # "lock the front door"
+        # "unlock front door"
+        # ------------------------------------------
+
+        lock_pat = re.match(
+            r"(?P<action>lock|unlock)\s+(?:the\s+)?(?P<device>[\w\s]+door|[\w\s]+lock|door)",
+            normalized,
+        )
+        if lock_pat:
+            g = lock_pat.groupdict()
+            if g["action"] == "lock":
+                return self.home.lock_door(g["device"])
+            else:
+                return self.home.unlock_door(g["device"])
+
+        # ------------------------------------------
+        # SMART HOME — DEVICE STATUS
+        # "what is the living room light status"
+        # "is the bedroom light on"
+        # ------------------------------------------
+
+        status_pat = re.match(
+            r"(?:what(?:'s| is) the\s+)?(?P<device>[\w\s]+)\s+"
+            r"(?:status|state|on\??|off\??|running|working)",
+            normalized,
+        )
+        if status_pat and any(
+            w in normalized for w in ("light", "fan", "ac", "heater", "lock", "door", "plug", "switch")
+        ):
+            return self.home.get_device_status(status_pat.group("device").strip())
+
+        # ------------------------------------------
+        # SMART HOME — LIST DEVICES
+        # "list my lights"
+        # "show all smart devices"
+        # ------------------------------------------
+
+        if re.match(r"(?:list|show|what are)\s+(?:my\s+|all\s+)?(?:smart\s+)?(?:devices?|lights?|switches?)", normalized):
+            m = re.search(r"(lights?|switches?|locks?|climate|media)", normalized)
+            domain = None
+            if m:
+                d = m.group(1).rstrip("s")
+                domain = {"light": "light", "switch": "switch", "lock": "lock",
+                          "climat": "climate", "media": "media_player"}.get(d)
+            return self.home.list_devices(domain)
+
+        # ------------------------------------------
+        # SMART HOME — ANNOUNCE / TTS ON SPEAKER
+        # "announce dinner is ready"
+        # "say hello on kitchen speaker"
+        # ------------------------------------------
+
+        announce_pat = re.match(
+            r"(?:announce|say|broadcast|tell everyone)\s+(?:that\s+)?(?P<msg>.+?)(?:\s+on\s+(?P<device>[\w\s]+))?$",
+            normalized,
+        )
+        if announce_pat:
+            g = announce_pat.groupdict()
+            return self.home.announce(g["msg"], g.get("device") or "all")
 
         # ------------------------------------------
         # OPEN APPLICATIONS
