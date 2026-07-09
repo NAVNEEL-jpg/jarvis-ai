@@ -264,6 +264,18 @@ class JarvisRouter:
             "paint": "paint",
             "file explorer": "file explorer",
             "explorer": "file explorer",
+            "chrome": "chrome",
+            "google chrome": "google chrome",
+            "cmd": "cmd",
+            "command prompt": "command prompt",
+            "terminal": "cmd",
+            "task manager": "task manager",
+            "taskmgr": "task manager",
+            "snipping tool": "snipping tool",
+            "wordpad": "wordpad",
+            "device manager": "device manager",
+            "settings": "settings",
+            "control panel": "settings",
         }
 
         if normalized.startswith("open "):

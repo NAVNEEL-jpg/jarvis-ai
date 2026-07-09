@@ -11,6 +11,15 @@ ALLOWED_APPS = {
     "calculator": ["calc.exe"],
     "paint": ["mspaint.exe"],
     "file explorer": ["explorer.exe"],
+    "chrome": ["chrome.exe"],
+    "google chrome": ["chrome.exe"],
+    "cmd": ["cmd.exe"],
+    "command prompt": ["cmd.exe"],
+    "task manager": ["taskmgr.exe"],
+    "snipping tool": ["snippingtool.exe"],
+    "wordpad": ["write.exe"],
+    "device manager": ["devmgmt.msc"],
+    "settings": ["cmd.exe", "/c", "start", "ms-settings:"],
 }
 
 ALLOWED_WEBSITES = {
@@ -23,13 +32,25 @@ ALLOWED_WEBSITES = {
 class JarvisTools:
     def open_app(self, app_name):
         app_name = app_name.lower().strip()
-
         command = ALLOWED_APPS.get(app_name)
 
         if command is None:
-            return f"I don't have permission to open {app_name} yet."
+            # Try launching dynamically via shell start command
+            try:
+                subprocess.Popen(["cmd.exe", "/c", "start", app_name], shell=True)
+                return f"Attempting to launch {app_name}."
+            except Exception:
+                return f"I don't have permission to open {app_name} yet."
 
-        subprocess.Popen(command)
+        try:
+            subprocess.Popen(command)
+        except Exception:
+            # Fallback to shell start
+            try:
+                # E.g. command[0] is 'chrome.exe'
+                subprocess.Popen(["cmd.exe", "/c", "start", command[0]], shell=True)
+            except Exception:
+                return f"Failed to open {app_name}."
 
         return f"Opening {app_name}."
 
