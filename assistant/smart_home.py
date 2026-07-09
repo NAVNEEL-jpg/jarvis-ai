@@ -301,22 +301,38 @@ class GoogleHomeBridge:
         self._tokens  = {}   # name → local_auth_token
         self._ready   = False
 
+        # If either email/password or manual speaker list is provided, Google Home is available
+        self.manual_speakers = os.getenv("GOOGLE_HOME_DEVICES", "").strip()
+        self.available = bool((self.email and self.password) or self.manual_speakers)
+        self.status = "idle" if not self.available else "connecting"
+
         if self.available:
             threading.Thread(target=self._init, daemon=True).start()
 
     def _init(self):
         try:
+            # 1. First check if manual speakers are specified (Bypasses Google Authentication completely)
+            if self.manual_speakers:
+                dev_names = [d.strip() for d in self.manual_speakers.split(",") if d.strip()]
+                for name in dev_names:
+                    name_lower = name.lower()
+                    self._devices[name_lower] = {"device_name": name, "local_auth_token": ""}
+                self._ready = True
+                self.status = "online"
+                logger.info("Google Home ready (Manual bypass): %d devices", len(self._devices))
+                return
+
+            # 2. Fallback to glocaltokens if no manual devices are specified
             from glocaltokens.client import GLocalAuthenticationTokens
 
             client = GLocalAuthenticationTokens(
                 username=self.email,
-                password=self.password.replace(" ", ""),  # Strip spaces just in case
+                password=self.password.replace(" ", ""),
             )
             tokens = client.get_google_devices_json()
             
-            # GLocalAuthenticationTokens returns empty list string '[]' or empty list if login fails
             if tokens == "[]" or not tokens:
-                self.status = "offline (BadAuthentication: Could not get master token. Double-check your Gmail and App Password)"
+                self.status = "offline (Google blocked connection. To fix: Add 'GOOGLE_HOME_DEVICES=Living Room Speaker' in settings to bypass login)"
                 logger.warning("Google Home login failed.")
                 return
 
@@ -626,6 +642,21 @@ class JarvisSmartHome:
             if entity:
                 ok = self.ha.turn_on(entity, brightness_pct=level)
                 return f"Setting {target} to {level}%." if ok else "Could not adjust."
+        return self._not_configured()
+
+    # ── COLOR ─────────────────────────────────────────────────────────────────
+
+    def set_color(self, device: str, color: str, room: str = None) -> str:
+        target = self._target(device, room)
+        if self.alexa.available and self.alexa._ready:
+            ok = self.alexa.send_command(f"set {target} to {color}")
+            if ok:
+                return f"Setting {target} color to {color}."
+        if self.ha.available:
+            entity = self.ha.find_entity(target, domain="light")
+            if entity:
+                ok = self.ha.turn_on(entity, color_name=color)
+                return f"Setting {target} color to {color}." if ok else "Could not reach Home Assistant."
         return self._not_configured()
 
     # ── TEMPERATURE ───────────────────────────────────────────────────────────

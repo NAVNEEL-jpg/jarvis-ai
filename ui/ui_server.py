@@ -134,6 +134,7 @@ class ConfigPayload(BaseModel):
     amazon_email: str
     amazon_password: str
     alexa_region: str
+    alexa_cookies: Optional[str] = ""
     google_home_email: str
     google_home_password: str
     google_home_devices: Optional[str] = ""
@@ -169,9 +170,20 @@ def update_env_file(updates: dict[str, str]):
 @app.get("/api/config")
 async def get_config():
     load_dotenv(os.path.join(_PROJECT_ROOT, ".env"), override=True)
+    email = os.getenv("AMAZON_EMAIL", "")
+    cookies_val = ""
+    if email:
+        cookie_file = os.path.join(_PROJECT_ROOT, "assistant", ".alexa_cache", ".storage", f"alexa_media.{email}.txt")
+        if os.path.exists(cookie_file):
+            try:
+                with open(cookie_file, "r", encoding="utf-8") as fh:
+                    cookies_val = fh.read()
+            except Exception:
+                pass
     return {
-        "amazon_email": os.getenv("AMAZON_EMAIL", ""),
+        "amazon_email": email,
         "alexa_region": os.getenv("ALEXA_REGION", "amazon.in"),
+        "alexa_cookies": cookies_val,
         "google_home_email": os.getenv("GOOGLE_HOME_EMAIL", ""),
         "google_home_devices": os.getenv("GOOGLE_HOME_DEVICES", ""),
         "supabase_url": os.getenv("SUPABASE_URL", ""),
@@ -196,6 +208,16 @@ async def save_config(payload: ConfigPayload):
         updates["GOOGLE_HOME_PASSWORD"] = payload.google_home_password
     if payload.supabase_anon_key:
         updates["SUPABASE_ANON_KEY"] = payload.supabase_anon_key
+
+    if payload.alexa_cookies and payload.amazon_email:
+        try:
+            cache_dir = os.path.join(_PROJECT_ROOT, "assistant", ".alexa_cache", ".storage")
+            os.makedirs(cache_dir, exist_ok=True)
+            cookie_file = os.path.join(cache_dir, f"alexa_media.{payload.amazon_email}.txt")
+            with open(cookie_file, "w", encoding="utf-8") as fh:
+                fh.write(payload.alexa_cookies)
+        except Exception:
+            pass
 
     try:
         update_env_file(updates)

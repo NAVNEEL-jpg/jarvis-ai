@@ -698,6 +698,13 @@
             <option value="amazon.co.uk">UK (amazon.co.uk)</option>
           </select>
         </div>
+        <div class="form-group">
+          <label>Alexa Session Cookies (Mozilla Cookie Jar text - Optional)</label>
+          <textarea id="cfg-alexa-cookies" rows="3" placeholder="Paste Netscape/Mozilla cookies.txt content here..." style="font-family: monospace; font-size: 10px; resize: vertical; height: 60px; background: rgba(0,0,0,0.2); color: var(--text); border: 1px solid rgba(0,229,255,0.2); border-radius: 4px; padding: 6px; width: 100%; box-sizing: border-box;"></textarea>
+          <span style="font-size: 9px; color: var(--text-dim); margin-top: 4px; display: block;">
+            💡 Tip: Export cookies from alexa.amazon.in using a browser extension (like 'Get Cookies.txt') and paste here to bypass security locks.
+          </span>
+        </div>
       </div>
 
       <div class="glass-card">
@@ -1416,6 +1423,7 @@ async function fetchWebConfig() {
     const d = await r.json();
     document.getElementById('cfg-alexa-email').value = d.amazon_email;
     document.getElementById('cfg-alexa-region').value = d.alexa_region;
+    document.getElementById('cfg-alexa-cookies').value = d.alexa_cookies || "";
     document.getElementById('cfg-google-email').value = d.google_home_email;
     document.getElementById('cfg-google-devices').value = d.google_home_devices || "";
     document.getElementById('cfg-supabase-url').value = d.supabase_url;
@@ -1433,6 +1441,7 @@ async function saveWebConfig() {
     amazon_email: document.getElementById('cfg-alexa-email').value,
     amazon_password: document.getElementById('cfg-alexa-password').value,
     alexa_region: document.getElementById('cfg-alexa-region').value,
+    alexa_cookies: document.getElementById('cfg-alexa-cookies').value,
     google_home_email: document.getElementById('cfg-google-email').value,
     google_home_password: document.getElementById('cfg-google-password').value,
     google_home_devices: document.getElementById('cfg-google-devices').value,

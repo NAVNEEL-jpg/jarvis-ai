@@ -115,6 +115,32 @@ class JarvisRouter:
         # "switch on bedroom lights at 50 percent"
         # ------------------------------------------
 
+        # Direct toggling/color matching (handles direct device names like 'bedroom' or custom bulb names)
+        if normalized.startswith("turn on ") or normalized.startswith("switch on "):
+            dev = normalized.replace("turn on ", "").replace("switch on ", "").replace("the ", "").strip()
+            b = None
+            if " at " in dev or " to " in dev:
+                for delim in (" at ", " to "):
+                    if delim in dev:
+                        parts = dev.split(delim)
+                        dev = parts[0].strip()
+                        pct = re.search(r"\d+", parts[1])
+                        if pct:
+                            b = int(pct.group())
+            return self.home.turn_on(dev, brightness=b)
+
+        if normalized.startswith("turn off ") or normalized.startswith("switch off "):
+            dev = normalized.replace("turn off ", "").replace("switch off ", "").replace("the ", "").strip()
+            return self.home.turn_off(dev)
+
+        color_pat = re.match(
+            r"(?:set|change)\s+(?:the\s+)?(?P<device>[\w\s]+?)\s+(?:color\s+)?to\s+(?P<color>red|green|blue|yellow|pink|purple|white|orange|cyan|magenta|warm white|cool white)",
+            normalized
+        )
+        if color_pat:
+            g = color_pat.groupdict()
+            return self.home.set_color(g["device"].strip(), g["color"].strip())
+
         turn_on_pat = re.match(
             r"(?:turn|switch|put)\s+on\s+(?:the\s+)?"
             r"(?:(?P<room>living room|bedroom|kitchen|bathroom|office|all)\s+)?"
