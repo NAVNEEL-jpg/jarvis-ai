@@ -851,9 +851,19 @@ class JarvisSmartHome:
         return " ".join(p.lower() for p in parts)
 
     def _not_configured(self) -> str:
+        active = self.active_backends
+        if active:
+            backends_str = " and ".join(active)
+            return (
+                f"Your smart home integration via {backends_str} is configured, sir, "
+                "but I couldn't reach any active devices at the moment. Please verify "
+                "that your Home Assistant VM is fully booted or check your credentials."
+            )
         return (
             "Smart home is not configured yet, sir. "
             "Add AMAZON_EMAIL and AMAZON_PASSWORD to your .env file to control "
             "Alexa-linked devices, or GOOGLE_HOME_EMAIL and GOOGLE_HOME_PASSWORD "
             "for Google Home devices."
         )
+
+
