@@ -36,14 +36,43 @@ class JarvisTools:
     def open_website(self, website_name):
         website_name = website_name.lower().strip()
 
+        # If it is a direct domain name (e.g., "github.com", "google.co.uk", "localhost:3000")
+        if "." in website_name or ":" in website_name or website_name.startswith("http"):
+            url = website_name
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
+            webbrowser.open(url)
+            return f"Opening {website_name}."
+
+        # Otherwise look in allowed dictionary
         url = ALLOWED_WEBSITES.get(website_name)
 
         if url is None:
-            return f"I don't know the website {website_name} yet."
+            # Dynamically guess the domain as www.website_name.com
+            guessed_url = f"https://www.{website_name}.com"
+            webbrowser.open(guessed_url)
+            return f"I couldn't find {website_name} in my allowed list, so I am opening {guessed_url}."
 
         webbrowser.open(url)
-
         return f"Opening {website_name}."
+
+    def search_google(self, query):
+        query = query.strip()
+        url = f"https://www.google.com/search?q={subprocess.list2cmdline([query])[1:-1]}"
+        # Double check URL formatting
+        import urllib.parse
+        safe_query = urllib.parse.quote(query)
+        url = f"https://www.google.com/search?q={safe_query}"
+        webbrowser.open(url)
+        return f"Searching Google for: {query}."
+
+    def search_youtube(self, query):
+        query = query.strip()
+        import urllib.parse
+        safe_query = urllib.parse.quote(query)
+        url = f"https://www.youtube.com/results?search_query={safe_query}"
+        webbrowser.open(url)
+        return f"Searching YouTube for: {query}."
 
     def get_time(self):
         return datetime.now().strftime(

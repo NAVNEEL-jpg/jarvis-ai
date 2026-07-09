@@ -273,7 +273,41 @@ class JarvisRouter:
                 return self.tools.open_app(app_aliases[requested])
 
         # ------------------------------------------
-        # OPEN WEBSITES
+        # SEARCH GOOGLE OR YOUTUBE
+        # ------------------------------------------
+
+        # Google Search
+        g_search_pat = re.match(
+            r"^(?:search\s+(?:google\s+for|for)?\s*|google\s+)(?P<query>.+)$",
+            normalized
+        )
+        if g_search_pat and not normalized.startswith("open "):
+            # Ensure it's not a youtube search request
+            query = g_search_pat.group("query").strip()
+            if not query.startswith("on youtube") and not query.endswith("on youtube") and not query.startswith("youtube "):
+                return self.tools.search_google(query)
+
+        # YouTube Search
+        yt_search_pat = re.match(
+            r"^(?:search\s+(?:youtube\s+for|for)?\s*|youtube\s+)(?P<query>.+)$",
+            normalized
+        )
+        if yt_search_pat:
+            query = yt_search_pat.group("query").strip()
+            return self.tools.search_youtube(query)
+
+        # Match "search [query] on google"
+        g_on_pat = re.match(r"^search\s+(?P<query>.+?)\s+on\s+google$", normalized)
+        if g_on_pat:
+            return self.tools.search_google(g_on_pat.group("query").strip())
+
+        # Match "search [query] on youtube"
+        yt_on_pat = re.match(r"^search\s+(?P<query>.+?)\s+on\s+youtube$", normalized)
+        if yt_on_pat:
+            return self.tools.search_youtube(yt_on_pat.group("query").strip())
+
+        # ------------------------------------------
+        # OPEN WEBSITES & DOMAINS
         # ------------------------------------------
 
         website_aliases = {
@@ -285,10 +319,15 @@ class JarvisRouter:
         if normalized.startswith("open "):
             requested = normalized.removeprefix("open ").strip()
 
-            if requested in website_aliases:
+            # If it's a known website or it looks like a domain name
+            if requested in website_aliases or "." in requested or ":" in requested:
                 return self.tools.open_website(
-                    website_aliases[requested]
+                    website_aliases.get(requested, requested)
                 )
+            
+            # If it's not an app, assume it is a website name and let open_website guess it
+            if requested not in app_aliases:
+                return self.tools.open_website(requested)
 
         # ------------------------------------------
         # TIME
