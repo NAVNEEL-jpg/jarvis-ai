@@ -793,7 +793,7 @@
   <!-- ─── INPUT BAR ────────────────────────────────────────────── -->
   <footer id="input-bar">
     <!-- Mic button -->
-    <button class="icon-btn" id="mic-btn" title="Voice input (hold)">
+    <button class="icon-btn" id="mic-btn" title="Voice input">
       <svg viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="2" stroke-linecap="round">
         <rect x="9" y="2" width="6" height="12" rx="3"/>
         <path d="M19 10a7 7 0 0 1-14 0"/>
@@ -801,7 +801,8 @@
         <line x1="8"  y1="22" x2="16" y2="22"/>
       </svg>
     </button>
-    <span id="voice-label">● REC</span>
+    <span id="voice-label" style="margin-right:8px;">● REC</span>
+    <button class="cp-btn cp-btn-cyan" id="mic-mode-btn" onclick="toggleAlwaysListenMode()" style="padding: 8px 12px; font-size: 8px; margin-right: 12px; height: 32px;" title="Switch microphone modes">🔄 ALWAYS LISTEN</button>
 
     <input
       id="chat-input"
@@ -998,11 +999,51 @@ function quickSend(text) {
 /* ------------------------------------------------------------------ */
 /* VOICE INPUT (Web Speech API with Hey Jarvis Wake Word)               */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* VOICE INPUT (Web Speech API with Always Listen Mode)                  */
+/* ------------------------------------------------------------------ */
 const micBtn     = document.getElementById('mic-btn');
 const voiceLabel = document.getElementById('voice-label');
+const micModeBtn = document.getElementById('mic-mode-btn');
+
 let recognition  = null;
-let isRecording  = false;
-let wakeListening = true; // Continuous listening for "Hey Jarvis"
+let isRecording  = false;     // Used as a mute toggle when in always-listen mode
+let wakeListening = true;     // Controls whether recognition should restart
+let alwaysListen  = true;     // Defaults to Always Listen mode!
+
+function updateMicUI() {
+  if (!recognition) return;
+  
+  if (alwaysListen) {
+    micModeBtn.textContent = "🔄 ALWAYS LISTEN";
+    micModeBtn.className = "cp-btn cp-btn-cyan";
+    if (wakeListening && !isRecording) {
+      micBtn.classList.add('recording');
+      voiceLabel.classList.add('visible');
+    } else {
+      micBtn.classList.remove('recording');
+      voiceLabel.classList.remove('visible');
+    }
+  } else {
+    micModeBtn.textContent = "🎙️ HEY JARVIS MODE";
+    micModeBtn.className = "cp-btn";
+    micBtn.classList.remove('recording');
+    voiceLabel.classList.remove('visible');
+  }
+}
+
+function toggleAlwaysListenMode() {
+  alwaysListen = !alwaysListen;
+  isRecording = false;
+  wakeListening = true;
+  
+  if (recognition) {
+    recognition.stop();
+  }
+  
+  toast(alwaysListen ? "Switched to ALWAYS LISTEN (Mic always open)" : "Switched to WAKE WORD ('Hey Jarvis' required)");
+  updateMicUI();
+}
 
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1023,92 +1064,118 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       }
     }
 
-    const text = (finalTranscript || interimTranscript).toLowerCase().trim();
-    
-    // Check for "hey jarvis" wake word or phonetic variations
-    const triggers = [
-      'hey jarvis', 'hello jarvis', 'hi jarvis', 'ok jarvis', 'hey, jarvis', 'jarvis',
-      'hey travis', 'hello travis', 'hey driver', 'hey java', 'hey garbage', 'hey chartres',
-      'page office', 'play office'
-    ];
+    const text = (finalTranscript || interimTranscript).trim();
+    if (!text) return;
 
-    let foundTrigger = null;
-    for (const trig of triggers) {
-      if (text.includes(trig)) {
-        foundTrigger = trig;
-        break;
+    if (alwaysListen) {
+      // In Always Listen mode, we send the final transcription directly
+      if (e.results[e.results.length - 1].isFinal) {
+        recognition.stop();
+        toast(`Sending voice command: "${text}"`);
+        addMessage('user', text, null);
+        send(text);
       }
-    }
-    
-    if (foundTrigger) {
-      const commandStartIndex = text.indexOf(foundTrigger) + foundTrigger.length;
-      const command = text.substring(commandStartIndex).trim().replace(/^[,.\s]+/, "");
+    } else {
+      // In Wake Word mode, we check for phonetic triggers
+      const textLower = text.toLowerCase();
+      const triggers = [
+        'hey jarvis', 'hello jarvis', 'hi jarvis', 'ok jarvis', 'hey, jarvis', 'jarvis',
+        'hey travis', 'hello travis', 'hey driver', 'hey java', 'hey garbage', 'hey chartres',
+        'page office', 'play office'
+      ];
 
-      if (command.length > 1) {
-        // Stop recognition momentarily to prevent echo loop
-        recognition.stop();
-        toast(`Wake word triggered! Command: "${command}"`);
-        addMessage('user', command, null);
-        send(command);
-      } else if (e.results[e.results.length - 1].isFinal) {
-        // If they just said the wake phrase
-        recognition.stop();
-        toast("Jarvis activated.");
-        const activationReply = "Yes, sir? How can I help you?";
-        addMessage('assistant', activationReply, null);
-        speakText(activationReply);
+      let foundTrigger = null;
+      for (const trig of triggers) {
+        if (textLower.includes(trig)) {
+          foundTrigger = trig;
+          break;
+        }
+      }
+      
+      if (foundTrigger) {
+        const commandStartIndex = textLower.indexOf(foundTrigger) + foundTrigger.length;
+        const command = text.substring(commandStartIndex).trim().replace(/^[,.\s]+/, "");
+
+        if (command.length > 1) {
+          recognition.stop();
+          toast(`Wake word triggered! Command: "${command}"`);
+          addMessage('user', command, null);
+          send(command);
+        } else if (e.results[e.results.length - 1].isFinal) {
+          recognition.stop();
+          toast("Jarvis activated.");
+          const activationReply = "Yes, sir? How can I help you?";
+          addMessage('assistant', activationReply, null);
+          speakText(activationReply);
+        }
       }
     }
   };
 
   recognition.onend = () => {
-    // If wakeListening is active, restart recognition after a short delay
     if (wakeListening && !isRecording) {
       setTimeout(() => {
         try {
           if (wakeListening && !isRecording) {
             recognition.start();
+            updateMicUI();
           }
         } catch (err) {}
-      }, 1200); // 1.2s delay gives the browser time to cleanly reset socket
+      }, 1200);
     } else {
-      isRecording = false;
-      micBtn.classList.remove('recording');
-      voiceLabel.classList.remove('visible');
+      updateMicUI();
     }
   };
 
   recognition.onerror = (e) => {
-    // Ignore normal network/no-speech timeout alerts
     if (e.error !== 'no-speech' && e.error !== 'aborted' && e.error !== 'network') {
       toast('Speech recognition error: ' + e.error);
     }
   };
 
-  // Start continuous wake-word listening by default
+  // Start continuous listening on boot
   try {
     recognition.start();
-    toast("Hands-free listening ('Hey Jarvis') active.");
+    setTimeout(updateMicUI, 500);
   } catch (err) {}
 }
 
 micBtn.addEventListener('click', () => {
   if (!recognition) { toast('Speech recognition not available in this browser.'); return; }
-  if (isRecording) {
-    isRecording = false;
-    wakeListening = true;
-    recognition.stop();
+  
+  if (alwaysListen) {
+    // In Always Listen mode, micBtn acts as a Mute toggle
+    if (isRecording) {
+      // Unmute (resume listening)
+      isRecording = false;
+      wakeListening = true;
+      recognition.stop();
+      toast("Microphone unmuted (Listening always)");
+    } else {
+      // Mute (pause listening)
+      isRecording = true;
+      wakeListening = false;
+      recognition.stop();
+      toast("Microphone muted (Always Listen paused)");
+    }
   } else {
-    isRecording = true;
-    wakeListening = false;
-    recognition.stop();
-    setTimeout(() => {
-      micBtn.classList.add('recording');
-      voiceLabel.classList.add('visible');
-      try {
-        recognition.start();
-      } catch (err) {}
-    }, 400);
+    // In Wake Word mode, micBtn starts a manual 1-time active recording session
+    if (isRecording) {
+      isRecording = false;
+      wakeListening = true;
+      recognition.stop();
+    } else {
+      isRecording = true;
+      wakeListening = false;
+      recognition.stop();
+      setTimeout(() => {
+        micBtn.classList.add('recording');
+        voiceLabel.classList.add('visible');
+        try {
+          recognition.start();
+        } catch (err) {}
+      }, 400);
+    }
   }
 });
 
