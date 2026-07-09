@@ -88,20 +88,28 @@ class AlexaBridge:
         self._devices = {}      # name → serial/entity
         self._lock    = threading.Lock()
         self._ready   = False
+        self._loop    = None
 
         if self.available:
-            threading.Thread(target=self._init_async, daemon=True).start()
+            threading.Thread(target=self._start_loop, daemon=True).start()
 
     # ── async init ────────────────────────────────────────────────────────────
 
-    def _run(self, coro):
-        """Run an async coroutine synchronously."""
+    def _start_loop(self):
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
         try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        return loop.run_until_complete(coro)
+            self._init_async()
+        except Exception as e:
+            self.status = f"offline ({str(e)})"
+        self._loop.run_forever()
+
+    def _run(self, coro):
+        """Run an async coroutine on our persistent event loop."""
+        if not self._loop:
+            raise RuntimeError("Event loop not running")
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return future.result()
 
     def _init_async(self):
         try:
@@ -121,6 +129,7 @@ class AlexaBridge:
                 path_helper,
                 debug=False,
             )
+            # Submit login to the loop
             self._run(login.login())
 
             if not login.status.get("login_successful"):
