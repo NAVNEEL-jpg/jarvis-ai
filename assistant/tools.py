@@ -121,4 +121,120 @@ class JarvisTools:
             )
 
         return response
+
+    def get_weather(self, location=None):
+        import requests
+        
+        # 1. If location is not specified, auto-detect using free Geo-IP lookup
+        if not location:
+            try:
+                r = requests.get("https://ipapi.co/json/", timeout=2)
+                if r.status_code == 200:
+                    d = r.json()
+                    location = d.get("city") or d.get("region")
+            except Exception:
+                pass
+        
+        if not location:
+            location = "London"  # fallback default
+            
+        # 2. Get Latitude & Longitude using Open-Meteo Geocoding
+        lat, lon, display_name = None, None, location
+        try:
+            geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={location}&count=1"
+            gr = requests.get(geo_url, timeout=3)
+            if gr.status_code == 200 and gr.json().get("results"):
+                res = gr.json()["results"][0]
+                lat = res["latitude"]
+                lon = res["longitude"]
+                display_name = f"{res['name']}, {res.get('country', '')}"
+        except Exception:
+            pass
+            
+        if lat is None or lon is None:
+            # Simple fallback coordinates for common fallback
+            lat, lon = 51.5074, -0.1278  # London
+            display_name = "London (Fallback)"
+
+        # 3. Fetch Forecast from Open-Meteo
+        try:
+            weather_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current_weather=true"
+            wr = requests.get(weather_url, timeout=3)
+            if wr.status_code == 200:
+                cw = wr.json()["current_weather"]
+                temp = cw["temperature"]
+                wind = cw["windspeed"]
+                code = cw["weathercode"]
+                
+                # Weather code translation mapping
+                descriptions = {
+                    0: "clear sky", 1: "mainly clear", 2: "partly cloudy", 3: "overcast",
+                    45: "foggy", 48: "depositing rime fog", 51: "light drizzle", 53: "moderate drizzle",
+                    55: "dense drizzle", 61: "slight rain", 63: "moderate rain", 65: "heavy rain",
+                    71: "slight snow fall", 73: "moderate snow fall", 75: "heavy snow fall",
+                    80: "slight rain showers", 81: "moderate rain showers", 82: "violent rain showers",
+                    95: "thunderstorm", 96: "thunderstorm with slight hail", 99: "thunderstorm with heavy hail"
+                }
+                desc = descriptions.get(code, "fair conditions")
+                return f"Currently in {display_name}, it is {temp:.1f}°C with {desc}. Wind speed is {wind:.1f} km/h."
+        except Exception as e:
+            return f"I couldn't fetch the weather for {location} right now, sir."
+
+    def get_news(self):
+        import requests
+        import xml.etree.ElementTree as ET
+        
+        url = "https://news.google.com/rss?hl=en-IN&gl=IN&ceid=IN:en"
+        try:
+            r = requests.get(url, timeout=3)
+            if r.status_code == 200:
+                root = ET.fromstring(r.text)
+                items = root.findall(".//item")[:4]
+                headlines = []
+                for i, item in enumerate(items, 1):
+                    title = item.find("title").text
+                    # strip source name e.g., " - Times of India"
+                    title = title.split(" - ")[0]
+                    headlines.append(f"{i}. {title}")
+                return "Here are the top news headlines: " + " | ".join(headlines)
+        except Exception:
+            pass
+        return "I'm unable to connect to the news feed right now, sir."
+
+    def define_word(self, word):
+        import requests
+        word = word.strip().lower()
+        url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
+        try:
+            r = requests.get(url, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                definition = data[0]["meanings"][0]["definitions"][0]["definition"]
+                part_of_speech = data[0]["meanings"][0]["partOfSpeech"]
+                return f"{word.capitalize()} ({part_of_speech}): {definition}"
+            elif r.status_code == 404:
+                return f"I couldn't find a definition for '{word}', sir."
+        except Exception:
+            pass
+        return f"I'm having trouble accessing my dictionary tools right now."
+
+    def convert_currency(self, amount, from_curr, to_curr):
+        import requests
+        from_curr = from_curr.strip().upper()
+        to_curr = to_curr.strip().upper()
+        url = f"https://open.er-api.com/v6/latest/{from_curr}"
+        try:
+            r = requests.get(url, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                rates = data.get("rates", {})
+                if to_curr in rates:
+                    rate = rates[to_curr]
+                    result = float(amount) * rate
+                    return f"{amount} {from_curr} is approximately {result:.2f} {to_curr}."
+                else:
+                    return f"I don't know the exchange rate for {to_curr}, sir."
+        except Exception:
+            pass
+        return "I'm unable to perform currency conversion right now, sir."
         

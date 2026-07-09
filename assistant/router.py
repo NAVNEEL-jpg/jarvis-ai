@@ -384,6 +384,50 @@ class JarvisRouter:
             "ram usage",
         )
 
+        # ------------------------------------------
+        # WEATHER
+        # ------------------------------------------
+        weather_loc_pat = re.match(
+            r"^(?:what(?:'s| is) the )?weather\s+(?:in|at|for)\s+(?P<loc>.+)$",
+            normalized
+        )
+        if weather_loc_pat:
+            return self.tools.get_weather(weather_loc_pat.group("loc").strip())
+
+        weather_phrases = (
+            "weather", "how is the weather", "todays weather", "temperature outside", "is it raining", "weather forecast"
+        )
+        if any(phrase in normalized for phrase in weather_phrases):
+            return self.tools.get_weather()
+
+        # ------------------------------------------
+        # NEWS HEADLINES
+        # ------------------------------------------
+        news_phrases = ("news", "latest news", "headlines", "what's in the news", "tell me the news")
+        if any(phrase in normalized for phrase in news_phrases):
+            return self.tools.get_news()
+
+        # ------------------------------------------
+        # WORD DEFINITION
+        # ------------------------------------------
+        def_pat = re.match(
+            r"^(?:define|what is the meaning of|what does)\s+(?P<word>\w+)(?:\s+mean)?$",
+            normalized
+        )
+        if def_pat:
+            return self.tools.define_word(def_pat.group("word").strip())
+
+        # ------------------------------------------
+        # CURRENCY CONVERSION
+        # ------------------------------------------
+        curr_pat = re.match(
+            r"^(?:convert|how much is)\s+(?P<amt>\d+(?:\.\d+)?)\s*(?P<from>[a-zA-Z]{3})\s+(?:to|in)\s+(?P<to>[a-zA-Z]{3})$",
+            normalized
+        )
+        if curr_pat:
+            g = curr_pat.groupdict()
+            return self.tools.convert_currency(float(g["amt"]), g["from"], g["to"])
+
         if any(phrase in normalized for phrase in status_phrases):
             return self.tools.get_system_status()
 
