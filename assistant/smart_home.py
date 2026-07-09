@@ -107,8 +107,11 @@ class AlexaBridge:
             # Path helper for cookies/cache expected by newer alexapy signatures
             def path_helper(filename):
                 cache_dir = os.path.join(os.path.dirname(__file__), ".alexa_cache")
-                os.makedirs(cache_dir, exist_ok=True)
-                return os.path.join(cache_dir, filename)
+                # Handle subdirectory paths like ".storage/alexa_media.*.txt"
+                parts = filename.replace("\\", "/").split("/")
+                target_dir = os.path.join(cache_dir, *parts[:-1]) if len(parts) > 1 else cache_dir
+                os.makedirs(target_dir, exist_ok=True)
+                return os.path.join(target_dir, parts[-1])
 
             # Pass positional parameters: url, email, password, outputpath
             login = AlexaLogin(
@@ -118,7 +121,12 @@ class AlexaBridge:
                 path_helper,
                 debug=False,
             )
-            # Await the login directly on the running loop
+            # Explicitly load saved cookies first (from .txt or .cookies file)
+            try:
+                await login.load_cookie()
+            except Exception as cookie_exc:
+                logger.warning("Cookie load warning (non-fatal): %s", cookie_exc)
+            # Attempt login - will use loaded cookies if available, else try password
             await login.login()
 
             if not login.status.get("login_successful"):
