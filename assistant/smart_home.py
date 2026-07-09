@@ -463,15 +463,47 @@ class HomeAssistantBridge:
 
     def find_entity(self, keyword: str, domain: str = None) -> Optional[str]:
         states = self._get("states") or []
-        keyword = keyword.lower()
+        keyword = keyword.lower().strip()
+        
+        # Clean filler words
+        fillers = ["my", "the", "a", "an", "device", "smart"]
+        words = [w for w in keyword.split() if w not in fillers]
+        clean_keyword = " ".join(words)
+        
+        if not clean_keyword:
+            return None
+            
+        # 1. Exact or substring match of the cleaned keyword
         for s in states:
             eid = s.get("entity_id", "")
             if domain and not eid.startswith(domain + "."):
                 continue
-            fn = s.get("attributes", {}).get("friendly_name", "")
-            if keyword in fn.lower() or keyword in eid.lower():
+            fn = s.get("attributes", {}).get("friendly_name", "").lower()
+            if clean_keyword in fn or clean_keyword in eid.lower():
                 return eid
+                
+        # 2. Generic fallback: if "light"/"bulb"/"switch" is requested and we have exactly one
+        is_generic_light = any(w in ["light", "bulb", "lamp"] for w in words)
+        is_generic_switch = any(w in ["switch", "plug", "outlet"] for w in words)
+        
+        if is_generic_light or is_generic_switch:
+            target_domain = "light" if is_generic_light else "switch"
+            matching = [s.get("entity_id") for s in states if s.get("entity_id", "").startswith(target_domain + ".")]
+            if len(matching) == 1:
+                return matching[0]
+                
+        # 3. Word overlap fallback (e.g. "avita" matching "avita bulb")
+        for s in states:
+            eid = s.get("entity_id", "")
+            if domain and not eid.startswith(domain + "."):
+                continue
+            fn = s.get("attributes", {}).get("friendly_name", "").lower()
+            specific_words = [w for w in words if w not in ["light", "bulb", "lamp", "switch", "plug", "outlet"]]
+            for w in specific_words:
+                if w in fn or w in eid.lower():
+                    return eid
         return None
+
 
     def list_entities(self, domain: str = None) -> list:
         states = self._get("states") or []
@@ -592,14 +624,12 @@ class JarvisSmartHome:
                 return (f"Turning on {target}." if ok
                         else f"Could not reach {target}.")
 
-        # Tuya fallback
-        if self.tuya.available:
-            ok = self.tuya.turn_on(target)
-            return f"Turning on {target}." if ok else f"Could not reach {target}."
-
-        if self.alexa.available and not self.alexa._ready:
+        # Fallback error messaging
+        active = self.active_backends
+        if self.ha.available or self.tuya.available:
+            return f"I couldn't find a device named '{target}' in your smart home, sir."
+        if len(active) == 1 and "Alexa" in active and not self.alexa._ready:
             return "Alexa is still signing in, sir. Please try again in a moment."
-
         return self._not_configured()
 
     # ── TURN OFF ──────────────────────────────────────────────────────────────
@@ -625,13 +655,12 @@ class JarvisSmartHome:
                 ok = self.ha.turn_off(entity)
                 return f"Turning off {target}." if ok else f"Could not reach {target}."
 
-        if self.tuya.available:
-            ok = self.tuya.turn_off(target)
-            return f"Turning off {target}." if ok else f"Could not reach {target}."
-
-        if self.alexa.available and not self.alexa._ready:
+        # Fallback error messaging
+        active = self.active_backends
+        if self.ha.available or self.tuya.available:
+            return f"I couldn't find a device named '{target}' in your smart home, sir."
+        if len(active) == 1 and "Alexa" in active and not self.alexa._ready:
             return "Alexa is still signing in, sir. Please try again in a moment."
-
         return self._not_configured()
 
     # ── BRIGHTNESS ────────────────────────────────────────────────────────────
