@@ -468,11 +468,15 @@ class HomeAssistantBridge:
         keyword = keyword.lower().strip()
         
         # Clean filler words
-        fillers = ["my", "the", "a", "an", "device", "smart"]
+        fillers = ["my", "the", "a", "an", "device", "smart", "by", "of"]
         words = [w for w in keyword.split() if w not in fillers]
         clean_keyword = " ".join(words)
         
         if not clean_keyword:
+            if domain:
+                matching = [s.get("entity_id") for s in states if s.get("entity_id", "").startswith(domain + ".")]
+                if len(matching) == 1:
+                    return matching[0]
             return None
             
         # 1. Exact or substring match of the cleaned keyword

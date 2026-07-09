@@ -172,15 +172,17 @@ class JarvisRouter:
         # Relative Brightness / Color adjustment
         relative_pat = re.match(
             r"^(?P<action>increase|decrease|brighten|dim|cool|warm)\s+"
-            r"(?:the\s+)?(?:brightness\s+of\s+|color\s+temperature\s+of\s+|color\s+of\s+)?"
-            r"(?P<device>[\w\s]+?)\s+"
+            r"(?:the\s+)?(?P<attribute>brightness|color\s+temperature|color)?\s*"
+            r"(?:of\s+)?(?P<device>[\w\s]+?)?\s*"
             r"(?:by\s+)?(?P<amount>\d+)\s*(?:percent|%)?$",
             normalized
         )
         if relative_pat:
             g = relative_pat.groupdict()
             action = g["action"]
-            device = g["device"].strip()
+            device = (g["device"] or "light").strip()
+            if device.lower() in ("by", "of"):
+                device = "light"
             amount = int(g["amount"])
             
             is_color = "color" in normalized or action in ["cool", "warm"]
