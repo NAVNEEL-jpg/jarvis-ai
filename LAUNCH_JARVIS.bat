@@ -30,24 +30,60 @@ if errorlevel 1 (
 echo [OK] Voice Server Online.
 echo.
 
-:: 2. Start Web UI Server (binds to 0.0.0.0 for Wifi/mobile access)
-echo [2/4] Starting Web Dashboard Server...
-start "JARVIS Web UI" /min cmd /c ^
-  "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
+:: 2. Interface Mode Selector
+echo ============================================================
+echo   Select JARVIS Interface Mode:
+echo ============================================================
+echo   [1] Web Dashboard (Recommended)
+echo       - Web HUD accessible from laptop, phone, and other devices
+echo       - Built-in hands-free "Hey Jarvis" wake word
+echo       - Full Control Panel, smart device list, and memory settings
+echo.
+echo   [2] PyQt5 Desktop App (Arc Reactor HUD)
+echo       - Floating desktop widget on this laptop
+echo       - Local microphone wake word listener
+echo.
+echo   [3] Start Both (Requires at least 16GB RAM)
+echo ============================================================
+set /p CHOICE="Enter choice (1, 2, or 3) [Default is 1]: "
 
-:: Give Web UI 1.5 seconds to bind
-timeout /t 2 >nul
+if "%CHOICE%"=="" set CHOICE=1
 
-:: 3. Open Web Dashboard in default browser
-echo [3/4] Opening Web Dashboard...
-start http://localhost:3000
+if "%CHOICE%"=="1" (
+    echo.
+    echo Starting Web Dashboard Server...
+    start "JARVIS Web UI" /min cmd /c ^
+      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
+    timeout /t 2 >nul
+    echo Opening Web Dashboard...
+    start http://localhost:3000
+    goto :system_booted
+)
 
-:: 4. Start PyQt5 Desktop GUI (Arc Reactor HUD)
-echo [4/4] Launching Arc Reactor GUI...
-start "JARVIS GUI" /min cmd /c ^
-  "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
+if "%CHOICE%"=="2" (
+    echo.
+    echo Starting PyQt5 Desktop GUI (Arc Reactor HUD)...
+    start "JARVIS GUI" /min cmd /c ^
+      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
+    goto :system_booted
+)
 
-echo [OK] Arc Reactor GUI launched.
+if "%CHOICE%"=="3" (
+    echo.
+    echo Starting Web Dashboard Server...
+    start "JARVIS Web UI" /min cmd /c ^
+      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\ui_server.py"
+    timeout /t 2 >nul
+    echo Opening Web Dashboard...
+    start http://localhost:3000
+    
+    echo Starting PyQt5 Desktop GUI (Arc Reactor HUD)...
+    start "JARVIS GUI" /min cmd /c ^
+      "C:\Users\admin\jarvis-ai\.venv\Scripts\python.exe ui\jarvis_desktop.py"
+    goto :system_booted
+)
+
+:system_booted
 echo.
 echo ============================================================
 echo                     ALL SYSTEMS ONLINE
